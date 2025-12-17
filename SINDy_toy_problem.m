@@ -1,5 +1,5 @@
 
-%ODE (Exponential Gorwth Model): dP/dt = rP
+%ODE (Exponential Growth Model): dP/dt = rP
 %Analytical Solution: P(t) = P0*e^(rt)
 
 
