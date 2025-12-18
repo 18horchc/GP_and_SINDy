@@ -1,3 +1,4 @@
+%1D linear test case
 
 %ODE (Exponential Growth Model): dP/dt = rP
 %Analytical Solution: P(t) = P0*e^(rt)
