@@ -55,8 +55,8 @@ xobs = pop_toy([3 2],:)' ./ std(pop_toy([3 2],:)');
 
 
 % Adding SMOOTHING: Crucial for degree-3 library with 21 points
-%xobs(:,1) = smoothdata(xobs(:,1), 'gaussian', 3); 
-%xobs(:,2) = smoothdata(xobs(:,2), 'gaussian', 3);
+xobs(:,1) = smoothdata(xobs(:,1), 'gaussian', 3); 
+xobs(:,2) = smoothdata(xobs(:,2), 'gaussian', 3);
 
 % true system parameter estimation given params above
 true_nz_weights = zeros(10,2);
@@ -204,7 +204,7 @@ end
 nUQ = size(XiDBeOut,3);
 nE = 5; % number of ensembles for forecast
 pct = 95; % plot prctile 
-plotUQ_LV_timeseries_toy(XiDB, XiDBeOut2, XiDBs, xobs(1,:), tspan, polys, nUQ, pct, nE, tspan, xobs, options, pop_toy);
+plotUQ_LV_timseries_toy(XiDB, XiDBeOut2, XiDBs, xobs(1,:), tspan, polys, nUQ, pct, nE, tspan, xobs, options, pop_toy);
 
 %% plot uncertainty in coefficients
 lib = {'1 ';'u ';'v ';'uv';'vv';'uu'};
