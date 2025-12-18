@@ -51,12 +51,12 @@ pop_toy = [t_sampled; xobs_noisy(:,2)'; xobs_noisy(:,1)'];
 
 tspan = pop_toy(1,:) - pop_toy(1,1);
 % Normalize the data (Prey is col 1, Predator is col 2)
-xobs = pop_toy([3 2],:)' ./ std(pop_toy([3 2],:)');
-
+%xobs = pop_toy([3 2],:)' ./ std(pop_toy([3 2],:)');
+xobs = pop_toy([3 2],:)';
 
 % Adding SMOOTHING: Crucial for degree-3 library with 21 points
-xobs(:,1) = smoothdata(xobs(:,1), 'gaussian', 3); 
-xobs(:,2) = smoothdata(xobs(:,2), 'gaussian', 3);
+%xobs(:,1) = smoothdata(xobs(:,1), 'gaussian', 3); 
+%xobs(:,2) = smoothdata(xobs(:,2), 'gaussian', 3);
 
 % true system parameter estimation given params above
 true_nz_weights = zeros(10,2);
@@ -221,3 +221,20 @@ inclProb2b = inclProbBS;
 inclProb2b(inclProbDB~=0) = inclProb2b(inclProbDB~=0).*inclProbDB(inclProbDB~=0);
 
 
+
+%% % Simple loop to print the discovered equations
+fprintf('Discovered Prey Equation: dx/dt = \n');
+for i = 1:size(XiDB,1)
+    if XiDB(i,1) ~= 0
+        fprintf(' + (%.4f)*%s', XiDB(i,1), lib{i});
+    end
+end
+fprintf('\n');
+
+fprintf('Discovered Predator Equation: dy/dt = \n');
+for i = 1:size(XiDB,1)
+    if XiDB(i,2) ~= 0
+        fprintf(' + (%.4f)*%s', XiDB(i,2), lib{i});
+    end
+end
+fprintf('\n');
