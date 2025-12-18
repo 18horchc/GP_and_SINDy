@@ -1,13 +1,19 @@
 %% 2D nonlinear
 
+%This file was taken and modified from C:\Users\chorc\GP_and_SINDy\EnsembleSINDy\SINDY\main_runLotkaVolterra.m
+
+clear all
+close all
+clc
+
 % x is prey and y is pred
 % x' = ax - bxy
 % y' = dxy - gy
 
 % Parameters
-alpha = 1.1; beta = 0.4;
-delta = 0.1; gamma = 0.4;
-params = [alpha, beta, delta, gamma];
+a = 1.1; b = 0.4;
+d = 0.1; g = 0.4;
+params = [a, b, d, g];
 
 % Time span and initial conditions [Prey, Predators]
 tspan = linspace(0, 50, 500);
@@ -25,27 +31,34 @@ title('Lotka-Volterra Toy Problem');
 
 
 
+%% Creating sample for Ensemble SINDy
+% --- 1. Generate Clean Data ---
+t_sampled = linspace(0, 50, 21); % 21 points to get exact 2.5 intervals
+y0 = [10, 5]; 
+[~, sol_clean] = ode45(@(t, y) [params(1)*y(1) - params(2)*y(1)*y(2); ...
+                                  params(3)*y(1)*y(2) - params(4)*y(2)], t_sampled, y0);
 
-%% Lotka Volterra lynx hare experimental data: ensemble SINDy 
+% --- 2. Add Gaussian Noise (5%) ---
+noise_level = 0.05;
+xobs_noisy = sol_clean + noise_level * std(sol_clean) .* randn(size(sol_clean));
 
-%This file was taken and modified from C:\Users\chorc\GP_and_SINDy\EnsembleSINDy\SINDY\main_runLotkaVolterra.m
+% --- 3. Construct the "pop_toy" Matrix ---
+% Row 1: Time
+% Row 2: Predator (to match lhpop row 2)
+% Row 3: Prey (to match lhpop row 3)
+pop_toy = [t_sampled; xobs_noisy(:,2)'; xobs_noisy(:,1)'];
 
-clear all
-close all
-clc
+%% Setup SINDy Workspace
+tspan = pop_toy(1,:) - pop_toy(1,1);
+% Normalize the data (Prey is col 1, Predator is col 2)
+xobs = pop_toy([3 2],:)' ./ std(pop_toy([3 2],:)');
 
-% lynx and hare population data from http://www.math.tamu.edu/~phoward/m442/modbasics.pdf
-% year, lynx, hare
-lhpop = [1900,1901,1902,1903,1904,1905,1906,1907,1908,1909,1910,1911,1912,1913,1914,1915,1916,1917,1918,1919,1920;4,6.10000000000000,9.80000000000000,35.2000000000000,59.4000000000000,41.7000000000000,19,13,8.30000000000000,9.10000000000000,7.40000000000000,8,12.3000000000000,19.5000000000000,45.7000000000000,51.1000000000000,29.7000000000000,15.8000000000000,9.70000000000000,10.1000000000000,8.60000000000000;30,47.2000000000000,70.2000000000000,77.4000000000000,36.3000000000000,20.6000000000000,18.1000000000000,21.4000000000000,22,25.4000000000000,27.1000000000000,40.3000000000000,57,76.6000000000000,52.3000000000000,19.5000000000000,11.2000000000000,7.60000000000000,14.6000000000000,16.2000000000000,24.7000000000000];
 
-tspan = lhpop(1,:)-lhpop(1,1);
-xobs = lhpop([3 2],:)'./std(lhpop([3 2],:)');
+% Adding SMOOTHING: Crucial for degree-3 library with 21 points
+xobs(:,1) = smoothdata(xobs(:,1), 'gaussian', 3); 
+xobs(:,2) = smoothdata(xobs(:,2), 'gaussian', 3);
 
-% true system parameter estimation Seth Hirsh UQ-SINDy paper
-a = 0.55;
-b = 0.455; 
-d = 0.5433;
-g = 0.84;  
+% true system parameter estimation given params above
 true_nz_weights = zeros(10,2);
 true_nz_weights(2,1) = a;
 true_nz_weights(4,1) = -b;
@@ -53,10 +66,18 @@ true_nz_weights(3,2) = -g;
 true_nz_weights(4,2) = d;
 
 
+
 % common parameters
 n = 2;
-polys = 0:3; % if changed, also change sparseGalerkin.m function, as it is optimised for polys = 0:3
-gamma = 0;
+polys = 0:3; % if changed, also change sparseGalerkin.m function, as it is 
+% optimised for polys = 0:3
+gamma = 0; 
+%For L2 regularization (=0 means the algorithm is performing "Pure" Sparse 
+% Regression (like Lasso or Sequential Thresholding) without adding a 
+% "Ridge" penalty to the size of the coefficients.)
+%Could change gamma to 1e-4 or 1e-3 if results are unstable (uncertainty
+%cloud is huge or coeffs change wildly with small changes in data. This
+%will 'stiffen' regression and make it more robust against noise.
 common_params = {polys,[]};
 
 tol_ode = 1e-10;         % set tolerance (abs and rel) of ode45
@@ -64,23 +85,35 @@ options = odeset('RelTol',tol_ode,'AbsTol',tol_ode*ones(1,n));
 
 Theta = build_theta(xobs,common_params);
 
+
+% Plot the "Analytical Truth"
+plot(tspan, xobs(:,1), 'b', tspan, xobs(:,2), 'r', 'LineWidth', 2);
+legend('Prey (x)', 'Predators (y)');
+xlabel('Time'); ylabel('Population');
+title('Lotka-Volterra Toy Problem');
+
+
+
+
 %% calculate derivatives
-dtL = 1;
+%will change this to Gaussian der 
+
+dt_toy = tspan(2) - tspan(1);
+dxobs = zeros(size(xobs));
 
 % Fourth order centered difference with third order forward/backward difference at endpoints.
-dxobs(1,:)=(-11/6*xobs(1,:) + 3*xobs(2,:) -3/2*xobs(3,:) + xobs(4,:)/3)/1;
-dxobs(2,:)=(-11/6*xobs(2,:) + 3*xobs(3,:) -3/2*xobs(4,:) + xobs(5,:)/3)/1;
-dxobs(3:19,:) = (-1/12*xobs(5:end,:) + 2/3*xobs(4:end-1,:) - 2/3*xobs(2:end-3,:) + 1/12*xobs(1:end-4,:));
-dxobs(20,:) = (11/6*xobs(end-1,:) - 3*xobs(end-2,:) + 3/2*xobs(end-3,:) - xobs(end-4,:)/3)/1;
-dxobs(21,:) = (11/6*xobs(end,:) - 3*xobs(end-1,:) + 3/2*xobs(end-2,:) - xobs(end-3,:)/3)/1;
-
+dxobs(1,:) = (-11/6*xobs(1,:) + 3*xobs(2,:) - 3/2*xobs(3,:) + xobs(4,:)/3) / dt_toy;
+dxobs(2,:) = (-11/6*xobs(2,:) + 3*xobs(3,:) - 3/2*xobs(4,:) + xobs(5,:)/3) / dt_toy;
+dxobs(3:19,:) = (-1/12*xobs(5:end,:) + 2/3*xobs(4:end-1,:) - 2/3*xobs(2:end-3,:) + 1/12*xobs(1:end-4,:)) / dt_toy;
+dxobs(20,:) = (11/6*xobs(end-1,:) - 3*xobs(end-2,:) + 3/2*xobs(end-3,:) - xobs(end-4,:)/3) / dt_toy;
+dxobs(21,:) = (11/6*xobs(end,:) - 3*xobs(end-1,:) + 3/2*xobs(end-2,:) - xobs(end-3,:)/3) / dt_toy;
 
 nEnsemble2 = 150;
 ensT = 0.65;
-nEnsemble1P = 0.85;
+nEnsemble1P = 0.95; % Use more points per bootstrap to avoid rank deficiency
 ensembleT = 0.8;
 nEnsemblesDD = 1000; % larger ensemble for refined UQ if using plotUQtimeseriesELVbootstrap
-lambda = 0.19;
+lambda = 0.6; % High threshold to kill off cubic "junk" terms
 
 
 %% Bagging SINDy library
@@ -169,7 +202,7 @@ end
 nUQ = size(XiDBeOut,3);
 nE = 5; % number of ensembles for forecast
 pct = 95; % plot prctile 
-plotUQ_LV_timeseries(XiDB,XiDBeOut2,XiDBs,xobs(1,:),tspan,polys,nUQ,pct,nE,tspan,xobs,options,lhpop)
+plotUQ_LV_timeseries(XiDB,XiDBeOut2,XiDBs,xobs(1,:),tspan,polys,nUQ,pct,nE,tspan,xobs,options,pop_toy)
 
 %% plot uncertainty in coefficients
 lib = {'1 ';'u ';'v ';'uv';'vv';'uu'};
