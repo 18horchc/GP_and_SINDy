@@ -16,7 +16,7 @@ d = 0.1; g = 0.4;
 params = [a, b, d, g];
 
 % Time span and initial conditions [Prey, Predators]
-tspan = linspace(0, 50, 500);
+tspan = linspace(0, 20, 500);
 y0 = [10, 5]; 
 
 % Solve the system
@@ -33,7 +33,7 @@ title('Lotka-Volterra Toy Problem');
 
 %% Creating sample for Ensemble SINDy
 % --- 1. Generate Clean Data ---
-t_sampled = linspace(0, 50, 21); % 21 points to get exact 2.5 intervals
+t_sampled = linspace(0, 20, 21); % 21 points to get dt=1
 y0 = [10, 5]; 
 [~, sol_clean] = ode45(@(t, y) [params(1)*y(1) - params(2)*y(1)*y(2); ...
                                   params(3)*y(1)*y(2) - params(4)*y(2)], t_sampled, y0);
@@ -48,15 +48,15 @@ xobs_noisy = sol_clean + noise_level * std(sol_clean) .* randn(size(sol_clean));
 % Row 3: Prey (to match lhpop row 3)
 pop_toy = [t_sampled; xobs_noisy(:,2)'; xobs_noisy(:,1)'];
 
-%% Setup SINDy Workspace
+
 tspan = pop_toy(1,:) - pop_toy(1,1);
 % Normalize the data (Prey is col 1, Predator is col 2)
 xobs = pop_toy([3 2],:)' ./ std(pop_toy([3 2],:)');
 
 
 % Adding SMOOTHING: Crucial for degree-3 library with 21 points
-xobs(:,1) = smoothdata(xobs(:,1), 'gaussian', 3); 
-xobs(:,2) = smoothdata(xobs(:,2), 'gaussian', 3);
+%xobs(:,1) = smoothdata(xobs(:,1), 'gaussian', 3); 
+%xobs(:,2) = smoothdata(xobs(:,2), 'gaussian', 3);
 
 % true system parameter estimation given params above
 true_nz_weights = zeros(10,2);
@@ -108,12 +108,14 @@ dxobs(3:19,:) = (-1/12*xobs(5:end,:) + 2/3*xobs(4:end-1,:) - 2/3*xobs(2:end-3,:)
 dxobs(20,:) = (11/6*xobs(end-1,:) - 3*xobs(end-2,:) + 3/2*xobs(end-3,:) - xobs(end-4,:)/3) / dt_toy;
 dxobs(21,:) = (11/6*xobs(end,:) - 3*xobs(end-1,:) + 3/2*xobs(end-2,:) - xobs(end-3,:)/3) / dt_toy;
 
+
 nEnsemble2 = 150;
 ensT = 0.65;
-nEnsemble1P = 0.95; % Use more points per bootstrap to avoid rank deficiency
+nEnsemble1P = 0.85;
 ensembleT = 0.8;
 nEnsemblesDD = 1000; % larger ensemble for refined UQ if using plotUQtimeseriesELVbootstrap
-lambda = 0.6; % High threshold to kill off cubic "junk" terms
+lambda = 0.19;
+
 
 
 %% Bagging SINDy library
@@ -202,12 +204,12 @@ end
 nUQ = size(XiDBeOut,3);
 nE = 5; % number of ensembles for forecast
 pct = 95; % plot prctile 
-plotUQ_LV_timeseries(XiDB,XiDBeOut2,XiDBs,xobs(1,:),tspan,polys,nUQ,pct,nE,tspan,xobs,options,pop_toy)
+plotUQ_LV_timeseries_toy(XiDB, XiDBeOut2, XiDBs, xobs(1,:), tspan, polys, nUQ, pct, nE, tspan, xobs, options, pop_toy);
 
 %% plot uncertainty in coefficients
 lib = {'1 ';'u ';'v ';'uv';'vv';'uu'};
 XiDBeOutFigure = XiDBeOut(1:6,:,:);
-plotUQ_LV(XiDBeOutFigure,true_nz_weights,XiDB,lib)
+plotUQ_LV_toy(XiDBeOutFigure,true_nz_weights,XiDB,lib)
 
 
 %% inclusion probability
