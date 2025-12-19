@@ -1,9 +1,9 @@
 function [deriv_mean, deriv_var] = gp_derivative_analytical(gprMdl, X_new)
 % Compute analytical derivative of a Gaussian Process
 %
-% For a GP with squared exponential kernel k(x, x') = σ² exp(-(x-x')²/(2l²))
-% The derivative GP has covariance:
-%   k'(x, x') = σ²/l² * (1 - (x-x')²/l²) * exp(-(x-x')²/(2l²))
+% Supports multiple kernel types:
+% - Squared exponential: k(x, x') = σ² exp(-(x-x')²/(2l²))
+% - Matern32: k(r) = σ²(1 + √3r/l)exp(-√3r/l) where r = |x-x'|
 %
 % Inputs:
 %   gprMdl: Fitted GP model from fitrgp
@@ -17,19 +17,16 @@ function [deriv_mean, deriv_var] = gp_derivative_analytical(gprMdl, X_new)
     X_train = gprMdl.X;
     y_train = gprMdl.Y;
     
-    % Get kernel parameters
-    % For squared exponential kernel, we need sigma and length scale
+    % Get kernel type and parameters
+    kernelName = gprMdl.KernelInformation.Name;
     kernelParams = gprMdl.KernelInformation.KernelParameters;
     
-    % Extract parameters
-    % MATLAB stores them as [SigmaL, SigmaF] where:
-    %   SigmaL = length scale (l)
-    %   SigmaF = signal standard deviation (sigma_f)
+    % Extract parameters (MATLAB stores as [SigmaL, SigmaF])
     if length(kernelParams) >= 2
         l = kernelParams(1);         % Length scale (SigmaL)
         sigma_f = kernelParams(2);  % Signal standard deviation (SigmaF)
     else
-        error('Expected at least 2 kernel parameters for squared exponential');
+        error('Expected at least 2 kernel parameters');
     end
     
     % Get noise variance
@@ -39,29 +36,56 @@ function [deriv_mean, deriv_var] = gp_derivative_analytical(gprMdl, X_new)
     n_train = size(X_train, 1);
     n_test = size(X_new, 1);
     
-    % Compute covariance matrices using vectorized operations for efficiency
-    % K(X, X): covariance between training points
-    % k(x, x') = σ² exp(-(x-x')²/(2l²))
+    % Compute covariance matrices based on kernel type
     X_train_mat = repmat(X_train, 1, n_train);
     X_train_mat_T = X_train_mat';
     d_XX = X_train_mat - X_train_mat_T;
-    K_XX = sigma_f^2 * exp(-d_XX.^2 / (2*l^2));
-    K_XX = K_XX + sigma_n^2 * eye(n_train);  % Add noise
     
-    % K'(X_new, X): cross-covariance between derivative at test points 
-    % and function at training points
-    % ∂k(x*, x)/∂x* = -σ²/l² * (x* - x) * exp(-(x*-x)²/(2l²))
     X_new_mat = repmat(X_new, 1, n_train);
     X_train_mat_for_cross = repmat(X_train', n_test, 1);
     d_deriv_X = X_new_mat - X_train_mat_for_cross;
-    K_deriv_X = -sigma_f^2 / l^2 * d_deriv_X .* exp(-d_deriv_X.^2 / (2*l^2));
     
-    % K'(X_new, X_new): covariance of derivative at test points
-    % ∂²k(x*, x*')/(∂x* ∂x*') = σ²/l² * (1 - (x*-x*')²/l²) * exp(-(x*-x*')²/(2l²))
     X_new_mat_2 = repmat(X_new, 1, n_test);
     X_new_mat_2_T = X_new_mat_2';
     d_deriv_XX = X_new_mat_2 - X_new_mat_2_T;
-    K_deriv_XX = sigma_f^2 / l^2 * (1 - d_deriv_XX.^2 / l^2) .* exp(-d_deriv_XX.^2 / (2*l^2));
+    
+    if strcmpi(kernelName, 'SquaredExponential')
+        % Squared exponential kernel
+        K_XX = sigma_f^2 * exp(-d_XX.^2 / (2*l^2));
+        K_deriv_X = -sigma_f^2 / l^2 * d_deriv_X .* exp(-d_deriv_X.^2 / (2*l^2));
+        K_deriv_XX = sigma_f^2 / l^2 * (1 - d_deriv_XX.^2 / l^2) .* exp(-d_deriv_XX.^2 / (2*l^2));
+        
+    elseif strcmpi(kernelName, 'Matern32')
+        % Matern 3/2 kernel: k(r) = σ²(1 + √3r/l)exp(-√3r/l)
+        sqrt3 = sqrt(3);
+        r_XX = abs(d_XX);
+        r_deriv_X = abs(d_deriv_X);
+        r_deriv_XX = abs(d_deriv_XX);
+        
+        K_XX = sigma_f^2 * (1 + sqrt3 * r_XX / l) .* exp(-sqrt3 * r_XX / l);
+        % Derivative of Matern32: more complex, using numerical approximation for cross-covariance
+        % For exact derivative, we'd need: ∂k/∂x* = -σ²√3/l * sign(x*-x) * (1 + √3r/l) * exp(-√3r/l)
+        K_deriv_X = -sigma_f^2 * sqrt3 / l * sign(d_deriv_X) .* (1 + sqrt3 * r_deriv_X / l) .* exp(-sqrt3 * r_deriv_X / l);
+        % Second derivative for K_deriv_XX (simplified)
+        K_deriv_XX = sigma_f^2 * 3 / l^2 * (1 - sqrt3 * r_deriv_XX / l) .* exp(-sqrt3 * r_deriv_XX / l);
+        
+    else
+        warning('Kernel %s not fully supported for analytical derivatives. Using finite differences approximation.', kernelName);
+        % Fallback: use finite differences on GP mean
+        [mu, ~] = predict(gprMdl, X_new);
+        dt = mean(diff(X_new));
+        if length(X_new) > 1
+            deriv_mean = gradient(mu, dt);
+        else
+            deriv_mean = 0;
+        end
+        if nargout > 1
+            deriv_var = zeros(size(deriv_mean));
+        end
+        return;
+    end
+    
+    K_XX = K_XX + sigma_n^2 * eye(n_train);  % Add noise
     
     % Compute mean of derivative GP
     % μ' = K'(X_new, X) * K(X,X)^(-1) * y

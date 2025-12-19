@@ -34,34 +34,63 @@ x_true = interp1(t_sol, sol(:,1), t_true);
 y_true = interp1(t_sol, sol(:,2), t_true);
 
 % Select 6 sparse time points
-t_sparse = linspace(0, 10, 6);  % 6 evenly spaced points
-x_sparse_true = interp1(t_sol, sol(:,1), t_sparse);
-y_sparse_true = interp1(t_sol, sol(:,2), t_sparse);
+t_sparse_unique = linspace(0, 10, 6);  % 6 evenly spaced time points
+x_sparse_true_unique = interp1(t_sol, sol(:,1), t_sparse_unique);
+y_sparse_true_unique = interp1(t_sol, sol(:,2), t_sparse_unique);
 
-% Add Gaussian noise
+% Generate 3 independent noisy measurements at each time point
+% This gives us 18 total data points (3 at each of 6 time points)
+num_replicates = 3;  % Number of measurements per time point
 noise_level = 0.1;  % 10% noise
-noise_x = normrnd(0, noise_level * std(x_sparse_true), size(x_sparse_true));
-noise_y = normrnd(0, noise_level * std(y_sparse_true), size(y_sparse_true));
 
-x_sparse_noisy = x_sparse_true + noise_x;
-y_sparse_noisy = y_sparse_true + noise_y;
+% Initialize arrays for all 18 points
+t_sparse = repmat(t_sparse_unique, num_replicates, 1);
+t_sparse = t_sparse(:);  % Flatten to column vector
+x_sparse_noisy = zeros(size(t_sparse));
+y_sparse_noisy = zeros(size(t_sparse));
+
+% Generate independent noisy measurements at each time point
+for i = 1:length(t_sparse_unique)
+    % True values at this time point
+    x_true_i = x_sparse_true_unique(i);
+    y_true_i = y_sparse_true_unique(i);
+    
+    % Generate 3 independent noisy measurements
+    for j = 1:num_replicates
+        idx = (i-1)*num_replicates + j;
+        noise_x = normrnd(0, noise_level * std(x_sparse_true_unique));
+        noise_y = normrnd(0, noise_level * std(y_sparse_true_unique));
+        
+        x_sparse_noisy(idx) = x_true_i + noise_x;
+        y_sparse_noisy(idx) = y_true_i + noise_y;
+    end
+end
 
 % Ensure non-negative (Lotka-Volterra should be positive)
 x_sparse_noisy = max(0.01, x_sparse_noisy);
 y_sparse_noisy = max(0.01, y_sparse_noisy);
 
-fprintf('Generated 6 sparse noisy points from Lotka-Volterra\n');
-fprintf('Time points: [%s]\n', num2str(t_sparse));
-fprintf('X values (noisy): [%s]\n', num2str(x_sparse_noisy));
-fprintf('Y values (noisy): [%s]\n', num2str(y_sparse_noisy));
+fprintf('Generated %d sparse noisy points from Lotka-Volterra\n', length(t_sparse));
+fprintf('  - %d unique time points: [%s]\n', length(t_sparse_unique), num2str(t_sparse_unique));
+fprintf('  - %d replicates per time point\n', num_replicates);
+fprintf('  - Total: %d data points\n', length(t_sparse));
 
-%% ========== PATH 1: Direct ESINDy on 6 noisy points ==========
+%% ========== PATH 1: Direct ESINDy on 18 noisy points ==========
 fprintf('\n========== PATH 1: Direct ESINDy ==========\n');
 
-% For ESINDy, we need discrete-time data
-% We'll use the 6 points directly
-xdata_path1 = x_sparse_noisy';
-ydata_path1 = y_sparse_noisy';
+% For ESINDy discrete-time formulation, we need sequential time points
+% Average replicates at each unique time point to get 6 sequential points
+xdata_path1 = zeros(size(t_sparse_unique));
+ydata_path1 = zeros(size(t_sparse_unique));
+
+for i = 1:length(t_sparse_unique)
+    idx_at_time = abs(t_sparse - t_sparse_unique(i)) < 1e-6;
+    xdata_path1(i) = mean(x_sparse_noisy(idx_at_time));
+    ydata_path1(i) = mean(y_sparse_noisy(idx_at_time));
+end
+
+xdata_path1 = xdata_path1';
+ydata_path1 = ydata_path1';
 
 % ESINDy uses discrete-time formulation: X(t+1) = f(X(t))
 % NOTE: No derivatives are computed in Path 1!
@@ -145,48 +174,72 @@ X_gp = t_sparse(:);
 y1_gp = x_sparse_noisy(:);
 y2_gp = y_sparse_noisy(:);
 
-% Fit GP models directly (no square root transform needed for Lotka-Volterra)
+% Fit GP models - try different kernels to get better fit
 % 
-% Why no square root transform?
-% - The square root transform was likely for count data with variance proportional
-%   to mean. For Lotka-Volterra, direct fitting works fine.
+% Options for KernelFunction:
+% - 'squaredexponential': Smooth, infinitely differentiable (default)
+% - 'matern32': Less smooth, allows for more variation
+% - 'matern52': Intermediate smoothness
+% - 'rationalquadratic': More flexible, can capture multiple scales
+% - 'ardsquaredexponential': Automatic relevance determination (ARD)
 %
-% Why Standardize = false?
-% - When Standardize = true, fitrgp standardizes both predictors (time) and response
-% - This complicates derivative computation: derivatives of standardized variables
-%   are not the same as derivatives of original variables
-% - For time series with derivatives, it's cleaner to work in original units
-% - If needed, you can manually standardize, but then must account for it in derivatives
+% For Lotka-Volterra with oscillatory behavior, Matern or rational quadratic
+% might work better than squared exponential.
+
+% Try different kernels and basis functions to get better fit
+% For oscillatory Lotka-Volterra data with only 6 points, we need careful tuning
+
+% Try linear basis function instead of constant (allows for trends)
+% This often works better with sparse data
+fprintf('Fitting GP models...\n');
 gprMdl_x = fitrgp(X_gp, y1_gp, ...
-    'KernelFunction', 'squaredexponential', ...
-    'BasisFunction', 'constant', ...
+    'KernelFunction', 'matern32', ...
+    'BasisFunction', 'linear', ...  % Changed from 'constant' to 'linear'
     'FitMethod', 'exact', ...
     'PredictMethod', 'exact', ...
     'Standardize', false);
 
 gprMdl_y = fitrgp(X_gp, y2_gp, ...
-    'KernelFunction', 'squaredexponential', ...
-    'BasisFunction', 'constant', ...
+    'KernelFunction', 'matern32', ...
+    'BasisFunction', 'linear', ...  % Changed from 'constant' to 'linear'
     'FitMethod', 'exact', ...
     'PredictMethod', 'exact', ...
     'Standardize', false);
+
+fprintf('GP kernel used: %s\n', gprMdl_x.KernelInformation.Name);
+fprintf('GP basis function: %s\n', gprMdl_x.BasisFunction);
+r2_x = compute_gp_r2(gprMdl_x, X_gp, y1_gp);
+r2_y = compute_gp_r2(gprMdl_y, X_gp, y2_gp);
+fprintf('GP fit quality - X: R² = %.4f, Y: R² = %.4f\n', r2_x, r2_y);
+
+if r2_x < 0.5 || r2_y < 0.5
+    warning('GP fit quality is poor (R² < 0.5). Consider adjusting hyperparameters or kernel.');
+end
 
 % Generate more time points for sampling
 t_dense = linspace(0, 10, 50);  % 50 points instead of 6
 X_dense = t_dense(:);
 
 % Predict from GP (directly, no transform needed)
-[y1pred, ~, ~] = predict(gprMdl_x, X_dense);
-[y2pred, ~, ~] = predict(gprMdl_y, X_dense);
+[y1pred, y1pred_std, ~] = predict(gprMdl_x, X_dense);
+[y2pred, y2pred_std, ~] = predict(gprMdl_y, X_dense);
 
 % Ensure non-negative
 y1pred = max(0.01, y1pred);
 y2pred = max(0.01, y2pred);
 
-% Sample from GP (add some uncertainty)
-% We can use the prediction intervals or add noise
-y1_sampled = y1pred + 0.05 * std(y1pred) * randn(size(y1pred));
-y2_sampled = y2pred + 0.05 * std(y2pred) * randn(size(y2pred));
+% Sample proper GP curves from the posterior distribution
+% This gives us actual GP sample curves, not just noisy mean estimates
+% Each sample is a full curve that respects the GP covariance structure
+num_gp_samples = 1;  % Number of GP curves to sample
+y1_gp_samples = sample_gp_posterior(gprMdl_x, X_dense, num_gp_samples);
+y2_gp_samples = sample_gp_posterior(gprMdl_y, X_dense, num_gp_samples);
+
+% Use the first (and only) sample curve
+y1_sampled = y1_gp_samples(:, 1);
+y2_sampled = y2_gp_samples(:, 1);
+
+% Ensure non-negative
 y1_sampled = max(0.01, y1_sampled);
 y2_sampled = max(0.01, y2_sampled);
 
@@ -197,14 +250,22 @@ x_combined = y1_sampled;  % Start with GP samples
 y_combined = y2_sampled;
 
 % Replace with original noisy data at original time points
-for i = 1:length(t_sparse)
-    [~, closest_idx] = min(abs(t_combined - t_sparse(i)));
-    x_combined(closest_idx) = x_sparse_noisy(i);
-    y_combined(closest_idx) = y_sparse_noisy(i);
+% Since we have multiple points at the same time, we'll use the mean of replicates
+% at each unique time point, or we can keep all 18 points
+% For now, let's use all 18 original points where they match the dense grid
+t_sparse_unique = unique(t_sparse);
+for i = 1:length(t_sparse_unique)
+    t_i = t_sparse_unique(i);
+    [~, closest_idx] = min(abs(t_combined - t_i));
+    
+    % Find all points at this time and use their mean
+    idx_at_time = abs(t_sparse - t_i) < 1e-6;
+    x_combined(closest_idx) = mean(x_sparse_noisy(idx_at_time));
+    y_combined(closest_idx) = mean(y_sparse_noisy(idx_at_time));
 end
 
-fprintf('Combined dataset: %d points (6 original + %d GP-sampled)\n', ...
-        length(t_combined), length(t_combined) - 6);
+fprintf('Combined dataset: %d points (%d original + %d GP-sampled)\n', ...
+        length(t_combined), length(t_sparse_unique), length(t_combined) - length(t_sparse_unique));
 
 % Compute GP derivative analytically
 % The derivative of a GP is itself a GP! We can compute it by differentiating
@@ -309,20 +370,20 @@ figure(1);
 subplot(2,1,1);
 plot(t_true, x_true, 'b-', 'LineWidth', 2, 'DisplayName', 'True X (prey)');
 hold on;
-scatter(t_sparse, x_sparse_noisy, 100, 'r', 'filled', 'DisplayName', 'Noisy sparse data');
+scatter(t_sparse, x_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Noisy sparse data (18 points)');
 xlabel('Time');
 ylabel('X (Prey)');
-title('Lotka-Volterra: Prey Population');
+title('Lotka-Volterra: Prey Population (18 points: 3 replicates at 6 time points)');
 legend('Location', 'best');
 grid on;
 
 subplot(2,1,2);
 plot(t_true, y_true, 'b-', 'LineWidth', 2, 'DisplayName', 'True Y (predator)');
 hold on;
-scatter(t_sparse, y_sparse_noisy, 100, 'r', 'filled', 'DisplayName', 'Noisy sparse data');
+scatter(t_sparse, y_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Noisy sparse data (18 points)');
 xlabel('Time');
 ylabel('Y (Predator)');
-title('Lotka-Volterra: Predator Population');
+title('Lotka-Volterra: Predator Population (18 points: 3 replicates at 6 time points)');
 legend('Location', 'best');
 grid on;
 
@@ -331,7 +392,7 @@ figure(2);
 subplot(2,1,1);
 plot(t_dense, y1pred, 'b-', 'LineWidth', 2, 'DisplayName', 'GP mean');
 hold on;
-scatter(t_sparse, x_sparse_noisy, 100, 'r', 'filled', 'DisplayName', 'Original 6 points');
+scatter(t_sparse, x_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Original 18 points');
 scatter(t_dense, y1_sampled, 50, 'g', 'o', 'DisplayName', 'GP samples');
 xlabel('Time');
 ylabel('X (Prey)');
@@ -342,7 +403,7 @@ grid on;
 subplot(2,1,2);
 plot(t_dense, y2pred, 'b-', 'LineWidth', 2, 'DisplayName', 'GP mean');
 hold on;
-scatter(t_sparse, y_sparse_noisy, 100, 'r', 'filled', 'DisplayName', 'Original 6 points');
+scatter(t_sparse, y_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Original 18 points');
 scatter(t_dense, y2_sampled, 50, 'g', 'o', 'DisplayName', 'GP samples');
 xlabel('Time');
 ylabel('Y (Predator)');
@@ -373,15 +434,19 @@ end
 
 % Simulate Path 2 model (continuous-time ODE)
 function_path2 = @(t, y) sindy_rhs_path2(t, y, epsguess_path2);
+% Use mean of replicates at first time point for initial condition
+idx_first = abs(t_sparse - t_sparse_unique(1)) < 1e-6;
+x0_path2 = mean(x_sparse_noisy(idx_first));
+y0_path2 = mean(y_sparse_noisy(idx_first));
 [t_ode_path2, sol_path2] = ode45(function_path2, [0, 10], ...
-                                 [x_sparse_noisy(1); y_sparse_noisy(1)], ...
+                                 [x0_path2; y0_path2], ...
                                  odeset('RelTol', 1e-6));
 
 subplot(2,2,1);
 plot(t_true, x_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
 hold on;
 plot(t_sim_path1, x_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1');
-scatter(t_sparse, x_sparse_noisy, 100, 'b', 'filled', 'DisplayName', 'Data');
+scatter(t_sparse, x_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
 xlabel('Time');
 ylabel('X (Prey)');
 title('Path 1: ESINDy Prediction');
@@ -392,7 +457,7 @@ subplot(2,2,2);
 plot(t_true, y_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
 hold on;
 plot(t_sim_path1, y_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1');
-scatter(t_sparse, y_sparse_noisy, 100, 'b', 'filled', 'DisplayName', 'Data');
+scatter(t_sparse, y_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
 xlabel('Time');
 ylabel('Y (Predator)');
 title('Path 1: ESINDy Prediction');
@@ -403,7 +468,7 @@ subplot(2,2,3);
 plot(t_true, x_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
 hold on;
 plot(t_ode_path2, sol_path2(:,1), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2');
-scatter(t_sparse, x_sparse_noisy, 100, 'b', 'filled', 'DisplayName', 'Data');
+scatter(t_sparse, x_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
 xlabel('Time');
 ylabel('X (Prey)');
 title('Path 2: GP-enhanced ESINDy Prediction');
@@ -414,7 +479,7 @@ subplot(2,2,4);
 plot(t_true, y_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
 hold on;
 plot(t_ode_path2, sol_path2(:,2), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2');
-scatter(t_sparse, y_sparse_noisy, 100, 'b', 'filled', 'DisplayName', 'Data');
+scatter(t_sparse, y_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
 xlabel('Time');
 ylabel('Y (Predator)');
 title('Path 2: GP-enhanced ESINDy Prediction');
@@ -425,15 +490,33 @@ grid on;
 fprintf('\n========== Model Comparison ==========\n');
 
 % Interpolate true solution to comparison time points
-x_true_path1 = interp1(t_sol, sol(:,1), t_sim_path1, 'linear', 'extrap');
-y_true_path1 = interp1(t_sol, sol(:,2), t_sim_path1, 'linear', 'extrap');
+% Handle case where t_sim_path1 might have NaN or invalid values
+valid_idx = ~isnan(t_sim_path1) & ~isnan(x_sim_path1) & ~isnan(y_sim_path1);
+if sum(valid_idx) > 0
+    x_true_path1 = interp1(t_sol, sol(:,1), t_sim_path1(valid_idx), 'linear', 'extrap');
+    y_true_path1 = interp1(t_sol, sol(:,2), t_sim_path1(valid_idx), 'linear', 'extrap');
+    
+    % Only compute RMSE for valid points
+    x_sim_valid = x_sim_path1(valid_idx);
+    y_sim_valid = y_sim_path1(valid_idx);
+else
+    x_true_path1 = [];
+    y_true_path1 = [];
+    x_sim_valid = [];
+    y_sim_valid = [];
+end
 
 x_true_path2 = interp1(t_sol, sol(:,1), t_ode_path2, 'linear', 'extrap');
 y_true_path2 = interp1(t_sol, sol(:,2), t_ode_path2, 'linear', 'extrap');
 
 % Compute RMSE for each path
-rmse_path1_x = sqrt(mean((x_sim_path1 - x_true_path1).^2));
-rmse_path1_y = sqrt(mean((y_sim_path1 - y_true_path1).^2));
+if ~isempty(x_sim_valid) && length(x_sim_valid) == length(x_true_path1)
+    rmse_path1_x = sqrt(mean((x_sim_valid - x_true_path1).^2));
+    rmse_path1_y = sqrt(mean((y_sim_valid - y_true_path1).^2));
+else
+    rmse_path1_x = NaN;
+    rmse_path1_y = NaN;
+end
 rmse_path2_x = sqrt(mean((sol_path2(:,1) - x_true_path2).^2));
 rmse_path2_y = sqrt(mean((sol_path2(:,2) - y_true_path2).^2));
 
