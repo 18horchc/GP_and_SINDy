@@ -11,7 +11,7 @@ clear; close all; clc
 % dx/dt = alpha*x - beta*x*y
 % dy/dt = delta*x*y - gamma*y
 
-% Parameters for Lotka-Volterra
+% Parameters for Lotka-18
 alpha = 1.5;  % Prey growth rate
 beta = 1.0;   % Predation rate
 gamma = 3.0;  % Predator death rate
@@ -75,10 +75,11 @@ fprintf('  - %d unique time points: [%s]\n', length(t_sparse_unique), num2str(t_
 fprintf('  - %d replicates per time point\n', num_replicates);
 fprintf('  - Total: %d data points\n', length(t_sparse));
 
-%% ========== PATH 1: Direct ESINDy on 18 noisy points ==========
+%% ========== PATH 1: Direct ESINDy on averaged data ==========
 fprintf('\n========== PATH 1: Direct ESINDy ==========\n');
 
-% For ESINDy discrete-time formulation, we need sequential time points
+% For Path 1, we use AVERAGED data at each unique time point
+% This gives us 6 points (one average per time point) instead of 18 raw points
 % Average replicates at each unique time point to get 6 sequential points
 xdata_path1 = zeros(size(t_sparse_unique));
 ydata_path1 = zeros(size(t_sparse_unique));
@@ -91,6 +92,9 @@ end
 
 xdata_path1 = xdata_path1';
 ydata_path1 = ydata_path1';
+
+fprintf('Path 1 uses averaged data: %d points (averages at %d unique time points)\n', ...
+        length(xdata_path1), length(t_sparse_unique));
 
 % ESINDy uses discrete-time formulation: X(t+1) = f(X(t))
 % NOTE: No derivatives are computed in Path 1!
@@ -415,12 +419,22 @@ grid on;
 figure(3);
 
 % Simulate Path 1 model (discrete-time)
-t_sim_path1 = t_sparse;
+% CRITICAL: Use unique time points for simulation, not all 18 points!
+% The model was trained on averaged data at 6 unique time points,
+% so we must simulate at those same 6 unique time points.
+% Using all 18 points would apply the discrete map multiple times at the same time,
+% causing numerical blowup (values like 10^166).
+t_sim_path1 = t_sparse_unique;  % Use 6 unique time points, not 18 with replicates
 x_sim_path1 = zeros(size(t_sim_path1));
 y_sim_path1 = zeros(size(t_sim_path1));
-x_sim_path1(1) = x_sparse_noisy(1);
-y_sim_path1(1) = y_sparse_noisy(1);
 
+% Use mean of replicates at first time point for initial condition
+idx_first = abs(t_sparse - t_sim_path1(1)) < 1e-6;
+x_sim_path1(1) = mean(x_sparse_noisy(idx_first));
+y_sim_path1(1) = mean(y_sparse_noisy(idx_first));
+
+% Apply discrete-time map: X(t+1) = f(X(t))
+% This advances from one unique time point to the next
 for i = 2:length(t_sim_path1)
     x_prev = x_sim_path1(i-1);
     y_prev = y_sim_path1(i-1);
@@ -446,10 +460,11 @@ subplot(2,2,1);
 plot(t_true, x_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
 hold on;
 plot(t_sim_path1, x_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1');
-scatter(t_sparse, x_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
+% Path 1 uses averaged data, so show averaged points
+scatter(t_sparse_unique, xdata_path1, 100, 'b', 'filled', 'DisplayName', 'Averaged data (6 pts)');
 xlabel('Time');
 ylabel('X (Prey)');
-title('Path 1: ESINDy Prediction');
+title('Path 1: ESINDy Prediction (uses averaged data)');
 legend('Location', 'best');
 grid on;
 
@@ -457,10 +472,11 @@ subplot(2,2,2);
 plot(t_true, y_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
 hold on;
 plot(t_sim_path1, y_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1');
-scatter(t_sparse, y_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
+% Path 1 uses averaged data, so show averaged points
+scatter(t_sparse_unique, ydata_path1, 100, 'b', 'filled', 'DisplayName', 'Averaged data (6 pts)');
 xlabel('Time');
 ylabel('Y (Predator)');
-title('Path 1: ESINDy Prediction');
+title('Path 1: ESINDy Prediction (uses averaged data)');
 legend('Location', 'best');
 grid on;
 
