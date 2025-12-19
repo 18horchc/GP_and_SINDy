@@ -8,7 +8,8 @@ lv_ode = @(t, x) [params(1)*x(1) - params(2)*x(1)*x(2); ...
 [t_true, X_true] = ode45(lv_ode, t_span, [10; 5]);
 
 % Create "Sparse & Noisy" Observed Data
-sample_idx = 1:5:length(t_true); 
+% Create EXACTLY 6 "Sparse & Noisy" Observed Data points
+sample_idx = round(linspace(1, length(t_true), 6)); 
 t_obs = t_true(sample_idx);
 X_obs = X_true(sample_idx, :) + normrnd(0, 0.5, [length(sample_idx), 2]);
 
@@ -23,26 +24,26 @@ end
 
 % Build Library for Path 1 (2nd Order)
 % Theta = [1, x, y, x^2, y^2, xy]
-Theta1 = [ones(size(X_poly_proxy,1),1), X_poly_proxy(:,1), X_poly_proxy(:,2), ...
-          X_poly_proxy(:,1).^2, X_poly_proxy(:,2).^2, X_poly_proxy(:,1).*X_poly_proxy(:,2)];
-% Finite Difference for Path 1
-dX1 = diff(X_poly_proxy) ./ diff(t_proxy);
+Theta1 = [ones(size(X_obs,1),1), X_obs(:,1), X_obs(:,2), ...
+          X_obs(:,1).^2, X_obs(:,2).^2, X_obs(:,1).*X_obs(:,2)];
+
+% Finite Difference on raw 6 points (results in 5 rows)
+dX1 = diff(X_obs) ./ diff(t_obs);
 Theta1_reduced = Theta1(1:end-1, :);
 
 %% 3. PATH 2: GP Interpolation (Enhanced Method)
 % Here we upsample to 200 points to support a larger library
+% Build Library for Path 2 
+% Use the 6 noisy points to generate 200 smooth points
 [t_gp, X_gp, dX_gp] = fitAndPlotGP_Multi(t_obs, X_obs, 200);
 
-% Build Library for Path 2 
-% [1, x, y, x^2, y^2, xy]
+% Build Library for Path 2 (using the 200 augmented points)
 Theta2 = [ones(size(X_gp,1),1), X_gp(:,1), X_gp(:,2), ...
           X_gp(:,1).^2, X_gp(:,2).^2, X_gp(:,1).*X_gp(:,2)];
 
-         % X_gp(:,1).^3, X_gp(:,2).^3, (X_gp(:,1).^2).*X_gp(:,2), X_gp(:,1).*(X_gp(:,2).^2)];
-
 %% 4. Ensemble SINDy (Style Matched to your Code)
 N = 500; 
-lambda = 0.1;
+lambda = 0.2;
 [Xi_Path1] = run_ESINDy_Logic(Theta1_reduced, dX1, N, lambda);
 [Xi_Path2] = run_ESINDy_Logic(Theta2, dX_gp, N, lambda);
 
