@@ -12,7 +12,7 @@ function [Xnew_time, Y_gp, dY_dt] = fitAndPlotGP(t, X_data, n_points)
         y_sqrt_obs = sqrt(y + 1e-6); 
 
         gprMdl = fitrgp(t, y_sqrt_obs, 'KernelFunction', 'squaredexponential', ...
-            'BasisFunction', 'constant', 'Standardize', true);
+            'BasisFunction', 'constant', 'Standardize', false);
 
         % Predictions
         [ypred_sqrt, ~, ~] = predict(gprMdl, Xnew_time);

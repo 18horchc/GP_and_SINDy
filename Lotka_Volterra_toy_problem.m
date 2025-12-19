@@ -32,7 +32,7 @@ X_A_in = X_m(2:end-1, :);
 dX_A_in = dX_central(2:end-1, :);
 
 % 2b. Run ESINDy
-[Xi_A, ~] = run_ESINDy(X_A_in,3, dX_A_in, lambda_sindy, 50, 0.8);
+[Xi_A, ~] = run_ESINDy(X_A_in,2, dX_A_in, lambda_sindy, 50, 0.8);
 
 % 2c. Integrate Discovered Model A
 t_span_recon = [min(t_true), max(t_true)];
@@ -48,14 +48,15 @@ end
 %% 3. Run Path B: GP Interpolation + ESINDy
 fprintf('Running Path B (Gaussian Process)...\n');
 % 3a. GP Interpolation & Analytical Derivative
-% Upsample significantly for smooth derivatives (e.g., 200 points)
-
-% NEED TO FIX BELOW
+% Using our updated function to handle both Prey and Predator
 [t_gp, X_gp, dX_gp] = fitAndPlotGP(t_m, X_m, 200);
 
+% 3b. Run ESINDy on the GP-augmented data
+% Note: Ensure your run_ESINDy supports the specific library order
+[Xi_B, ~] = run_ESINDy(X_gp, 2, dX_gp, lambda_sindy, 50, 0.9);
 
 % 3b. Run ESINDy on the GP-augmented data
-[Xi_B, ~] = run_ESINDy(X_gp, dX_gp, lambda_sindy, 50, 0.9);
+[Xi_B, ~] = run_ESINDy(X_gp, 2, dX_gp, lambda_sindy, 50, 0.9);
 disp('Path B Coefficients:');
 disp(Xi_B);
 
