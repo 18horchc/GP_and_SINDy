@@ -1,60 +1,38 @@
-function [gprMdl, Xnew, ypred, dydt] = fitAndPlotGP(X, y, titleStr, ylabelStr, standardizeToggle)
-    % 1. Data Transformation
-    y_sqrt = sqrt(y + 1e-6); 
-
-    % 2. Fit the Gaussian Process Model
-    gprMdl = fitrgp(X, y_sqrt, ...
-        'KernelFunction', 'squaredexponential', ...
-        'BasisFunction', 'constant', ...
-        'FitMethod', 'exact', ...
-        'PredictMethod', 'exact', ...
-        'Standardize', standardizeToggle);
-
-    % 3. Generate Predictions for the Mean
-    Xnew = linspace(min(X), max(X), 300)';
-    [ypred_sqrt, ~, yint_sqrt] = predict(gprMdl, Xnew);
-
-    % --- 4. ANALYTICAL DERIVATIVE CALCULATION ---
-    % Extract hyperparameters: SigmaL (Length scale) and SigmaF (Signal std dev)
-    L = gprMdl.KernelInformation.KernelParameters(1); 
-    sigma_f = gprMdl.KernelInformation.KernelParameters(2);
+function [Xnew_time, Y_gp, dY_dt] = fitAndPlotGP(t, X_data, n_points)
+    % Multi-variable GP fitting for SINDy
+    num_vars = size(X_data, 2);
+    Xnew_time = linspace(min(t), max(t), n_points)';
     
-    % Get alpha coefficients: alpha = (K + sigma_n^2*I)^-1 * y
-    alpha = gprMdl.Alpha;
-    X_train = gprMdl.X; % Training inputs (standardized if toggle was true)
-
-    % Calculate the derivative of the Mean function for Squared Exponential Kernel
-    % dmu/dx = sum_{i=1}^n alpha_i * dK(x, x_i)/dx
-    num_new = length(Xnew);
-    dmu_dx_sqrt = zeros(num_new, 1);
+    Y_gp = zeros(n_points, num_vars);
+    dY_dt = zeros(n_points, num_vars);
     
-    for i = 1:num_new
-        % SE Kernel Derivative: K(x,x') * (-(x - x') / L^2)
-        dist = Xnew(i) - X_train;
-        K_val = (sigma_f^2) * exp(-0.5 * (dist.^2) / (L^2));
-        dK_dx = K_val .* (-dist / L^2);
-        dmu_dx_sqrt(i) = sum(alpha .* dK_dx);
+    for i = 1:num_vars
+        y = X_data(:,i);
+        % Note: Using your sqrt transform logic from earlier
+        y_sqrt_obs = sqrt(y + 1e-6); 
+
+        gprMdl = fitrgp(t, y_sqrt_obs, 'KernelFunction', 'squaredexponential', ...
+            'BasisFunction', 'constant', 'Standardize', true);
+
+        % Predictions
+        [ypred_sqrt, ~, ~] = predict(gprMdl, Xnew_time);
+        
+        % Analytical Derivative of the Mean (as established earlier)
+        L = gprMdl.KernelInformation.KernelParameters(1); 
+        sigma_f = gprMdl.KernelInformation.KernelParameters(2);
+        alpha = gprMdl.Alpha;
+        X_train = gprMdl.X;
+        
+        dmu_dx_sqrt = zeros(n_points, 1);
+        for j = 1:n_points
+            dist = Xnew_time(j) - X_train;
+            K_val = (sigma_f^2) * exp(-0.5 * (dist.^2) / (L^2));
+            dK_dx = K_val .* (-dist / L^2);
+            dmu_dx_sqrt(j) = sum(alpha .* dK_dx);
+        end
+
+        % Transform back & Apply Chain Rule
+        Y_gp(:,i) = max(0, ypred_sqrt).^2;
+        dY_dt(:,i) = 2 * ypred_sqrt .* dmu_dx_sqrt; 
     end
-
-    % --- 5. CHAIN RULE FOR ORIGINAL SCALE ---
-    % Since y = y_sqrt^2, dy/dt = 2 * y_sqrt * d(y_sqrt)/dt
-    ypred = max(0, ypred_sqrt).^2;
-    dydt = 2 * ypred_sqrt .* dmu_dx_sqrt; 
-    
-    % Transform intervals for plotting
-    ylow  = max(0, yint_sqrt(:,1)).^2;
-    yhigh = max(0, yint_sqrt(:,2)).^2;
-
-    % 6. Plotting
-    hold on;
-    scatter(X, y, 50, 'r', 'filled', 'DisplayName', 'Observed Data');
-    plot(Xnew, ypred, 'b-', 'LineWidth', 2, 'DisplayName', 'GP Mean ($\hat{y}$)');
-    plot(Xnew, ylow,  'k--', 'LineWidth', 1.4, 'DisplayName', '95% Prediction Interval');
-    plot(Xnew, yhigh, 'k--', 'LineWidth', 1.4, 'HandleVisibility', 'off');
-    
-    xlabel('Time (days)');
-    ylabel(ylabelStr);
-    title(titleStr);
-    legend('Location', 'best', 'Interpreter', 'latex');
-    grid on;
 end

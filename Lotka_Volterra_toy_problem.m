@@ -49,11 +49,9 @@ end
 fprintf('Running Path B (Gaussian Process)...\n');
 % 3a. GP Interpolation & Analytical Derivative
 % Upsample significantly for smooth derivatives (e.g., 200 points)
+
+% NEED TO FIX BELOW
 [t_gp, X_gp, dX_gp] = fitAndPlotGP(t_m, X_m, 200);
-
-
-[mdl1, x1, p1] = fitAndPlotGP(t_1, y_1, 'GP of x', 'x', false);
-
 
 
 % 3b. Run ESINDy on the GP-augmented data
