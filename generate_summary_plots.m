@@ -276,7 +276,7 @@ end
 [y1_deriv_combined, ~] = gp_derivative_analytical(gprMdl_x, X_dense);
 [y2_deriv_combined, ~] = gp_derivative_analytical(gprMdl_y, X_dense);
 
-% Simple SINDy fit for Path 2 (expanded library)
+% SINDy fit for Path 2 (expanded library) with STLS regularization
 Theta_path2 = [ones(length(t_dense), 1) ...
                x_combined(:) ...
                y_combined(:) ...
@@ -289,7 +289,34 @@ Theta_path2 = [ones(length(t_dense), 1) ...
                x_combined(:).*y_combined(:).^2];
 
 X_dot_path2 = [y1_deriv_combined(:) y2_deriv_combined(:)];
-epsguess_path2 = Theta_path2 \ X_dot_path2;
+
+% Use STLS (Sequential Thresholded Least Squares) with regularization
+% This prevents overfitting with the expanded library
+lambda = 0.01;  % Sparsity threshold
+epsguess_path2 = Theta_path2 \ X_dot_path2;  % Initial guess
+
+% Apply sparsity thresholding iteratively
+for c = 1:10
+    smallinds = (abs(epsguess_path2) < lambda);
+    epsguess_path2(smallinds) = 0;
+    biginds1 = ~smallinds(:,1);
+    biginds2 = ~smallinds(:,2);
+    % Only regress on non-zero coefficients
+    if sum(biginds1) > 0
+        epsguess_path2(biginds1,1) = Theta_path2(:,biginds1) \ X_dot_path2(:,1);
+    end
+    if sum(biginds2) > 0
+        epsguess_path2(biginds2,2) = Theta_path2(:,biginds2) \ X_dot_path2(:,2);
+    end
+end
+
+% Check for extreme coefficients that might cause instability
+if any(abs(epsguess_path2) > 100)
+    warning('Path 2 coefficients are very large. Applying additional regularization.');
+    % Apply stronger threshold for very large coefficients
+    extreme_inds = abs(epsguess_path2) > 100;
+    epsguess_path2(extreme_inds) = sign(epsguess_path2(extreme_inds)) * 100;
+end
 
 % Simulate Path 2 (continuous-time ODE)
 function_path2 = @(t, y) sindy_rhs_path2(t, y, epsguess_path2);
@@ -298,12 +325,28 @@ x0_path2 = mean(x_sparse_noisy(idx_first));
 y0_path2 = mean(y_sparse_noisy(idx_first));
 
 try
+    % Use tighter tolerances and smaller max step to handle potential stiffness
     [t_ode_path2, sol_path2] = ode45(function_path2, [0, 10], ...
                                      [x0_path2; y0_path2], ...
-                                     odeset('RelTol', 1e-6, 'MaxStep', 0.1));
-catch
+                                     odeset('RelTol', 1e-8, 'AbsTol', 1e-8, 'MaxStep', 0.05));
+    
+    % Check for unrealistic values (blow-up)
+    if any(sol_path2(:) > 1e6) || any(sol_path2(:) < -1e6) || any(~isfinite(sol_path2(:)))
+        warning('Path 2 ODE solution contains unrealistic values. Truncating integration.');
+        % Find where solution becomes unrealistic
+        valid_idx = all(isfinite(sol_path2), 2) & all(abs(sol_path2) < 1e6, 2);
+        if sum(valid_idx) > 10
+            t_ode_path2 = t_ode_path2(valid_idx);
+            sol_path2 = sol_path2(valid_idx, :);
+        else
+            % If too much is invalid, use GP mean
+            t_ode_path2 = t_dense;
+            sol_path2 = [y1pred, y2pred];
+        end
+    end
+catch ME
     % If integration fails, use GP mean as fallback
-    warning('Path 2 ODE integration failed, using GP mean for visualization');
+    warning('Path 2 ODE integration failed: %s. Using GP mean for visualization.', ME.message);
     t_ode_path2 = t_dense;
     sol_path2 = [y1pred, y2pred];
 end
