@@ -12,12 +12,12 @@ t_span_true = 0:0.05:30;
 x0 = [10; 5];
 
 % "Difficult" Data Parameters
-noise_sigma = 0.25;  % Significant noise
-n_samples = 40;      % Sparse sampling
+noise_sigma = 0.05;  % Significant noise
+n_samples = 20;      % Sparse sampling
 lambda_sindy = 0.1;  % SINDy threshold
 
 % --- Generate Data ---
-[t_true, X_true, ~, Xi_true] = generate_ground_truth(t_span_true, x0, p_true);
+[t_true, X_true, ~, Xi_true] = LV_ground_truth(t_span_true, x0, p_true);
 [t_m, X_m] = degrade_data(t_true, X_true, n_samples, noise_sigma);
 
 %% 2. Run Path A: Raw Data + Central Difference + ESINDy
@@ -32,7 +32,7 @@ X_A_in = X_m(2:end-1, :);
 dX_A_in = dX_central(2:end-1, :);
 
 % 2b. Run ESINDy
-[Xi_A, ~] = run_ESINDy(X_A_in, dX_A_in, lambda_sindy, 50, 0.9);
+[Xi_A, ~] = run_ESINDy(X_A_in,3, dX_A_in, lambda_sindy, 50, 0.8);
 
 % 2c. Integrate Discovered Model A
 t_span_recon = [min(t_true), max(t_true)];
@@ -49,7 +49,12 @@ end
 fprintf('Running Path B (Gaussian Process)...\n');
 % 3a. GP Interpolation & Analytical Derivative
 % Upsample significantly for smooth derivatives (e.g., 200 points)
-[t_gp, X_gp, dX_gp] = run_GP_Interpolation(t_m, X_m, 200);
+[t_gp, X_gp, dX_gp] = fitAndPlotGP(t_m, X_m, 200);
+
+
+[mdl1, x1, p1] = fitAndPlotGP(t_1, y_1, 'GP of x', 'x', false);
+
+
 
 % 3b. Run ESINDy on the GP-augmented data
 [Xi_B, ~] = run_ESINDy(X_gp, dX_gp, lambda_sindy, 50, 0.9);

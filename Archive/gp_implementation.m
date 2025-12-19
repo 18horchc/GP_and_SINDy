@@ -74,3 +74,4 @@ ylabel('M2 cell counts');
 title('GP of M2');
 legend('Observed','GP mean','95% prediction interval','Location','best');
 hold off;
+

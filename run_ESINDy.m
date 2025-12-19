@@ -1,10 +1,10 @@
 %% 4c. The Ensemble Wrapper
-function [Xi_mean, inclusion_prob] = run_ESINDy(X, dXdt, lambda, n_models, ensemble_size)
+function [Xi_mean, inclusion_prob] = run_ESINDy(X, polyorder, dXdt, lambda, n_models, ensemble_size)
     % X: state data, dXdt: derivative data
     % n_models: number of ensemble realizations (e.g., 100)
     % ensemble_size: fraction of data to use in each bag (e.g., 0.8)
     
-    Theta = build_library(X, 2); 
+    Theta = build_library(X, polyorder); 
     [num_terms, num_states] = size(Theta \ dXdt);
     
     Xi_ensemble = zeros(num_terms, num_states, n_models);

@@ -1,4 +1,4 @@
-function [t, X, dXdt, true_Xi] = generate_ground_truth(t_span, x0, params)
+function [t, X, dXdt, true_Xi] = LV_ground_truth(t_span, x0, params)
     % GENERATE_GROUND_TRUTH Produces clean ODE data and the true SINDy coefficients.
     %
     % Inputs:
