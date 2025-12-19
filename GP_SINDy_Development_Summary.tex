@@ -1,0 +1,354 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{Development Summary: Gaussian Process-Enhanced SINDy for Lotka-Volterra System Identification}
+\author{Development Session Documentation}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This document summarizes the development work on implementing and improving a Gaussian Process (GP)-enhanced Sparse Identification of Nonlinear Dynamics (SINDy) approach for identifying Lotka-Volterra equations from sparse, noisy data. The work involved comparing two distinct pathways: (1) direct ESINDy on sparse data, and (2) GP-enhanced ESINDy with data augmentation and analytical derivative computation.
+
+\section{Problem Statement}
+
+The goal was to compare two approaches for modeling Lotka-Volterra equations from sparse and noisy observations:
+
+\textbf{Path 1:} Direct ESINDy on 6 sparse noisy data points using discrete-time formulation ($X(t+1) = f(X(t))$).
+
+\textbf{Path 2:} GP-enhanced ESINDy that:
+\begin{itemize}
+    \item Fits a GP to sparse noisy data
+    \item Samples additional plausible data points from the GP posterior
+    \item Computes analytical derivatives from the GP
+    \item Combines original and GP-sampled data
+    \item Runs continuous-time ESINDy ($dX/dt = f(X)$) with an expanded library
+\end{itemize}
+
+\section{Initial Challenges}
+
+\subsection{GP Fitting Issues}
+
+Initially, the GP mean predictions were producing straight lines (R² ≈ 0.0000), indicating a complete failure to capture the underlying dynamics. This was attributed to:
+\begin{itemize}
+    \item Extremely sparse data (only 6 points)
+    \item High noise levels (10\% Gaussian noise)
+    \item Poor hyperparameter initialization
+    \item Inappropriate kernel or basis function choices
+\end{itemize}
+
+\subsection{Data Generation Improvements}
+
+To improve GP fitting, we increased the data density:
+\begin{itemize}
+    \item \textbf{Original approach:} 6 unique time points
+    \item \textbf{Improved approach:} 18 total data points (3 replicates at each of 6 unique time points)
+    \item This provided better statistical power for GP hyperparameter estimation
+    \item Path 1 was modified to use averaged data (6 points) for consistency
+\end{itemize}
+
+\section{Kernel Selection and Evolution}
+
+\subsection{Rational Quadratic Kernel (Initial Attempt)}
+
+Initially, we attempted to use the Rational Quadratic (RQ) kernel, which is a scale mixture of squared exponential kernels and can model functions with varying smoothness:
+
+\begin{equation}
+k(x, x') = \sigma^2 \left(1 + \frac{(x-x')^2}{2\alpha l^2}\right)^{-\alpha}
+\end{equation}
+
+\textbf{Issues encountered:}
+\begin{itemize}
+    \item GP optimization converged to a poor local minimum with length scale $l \approx 0.0000$
+    \item This caused numerical instability in analytical derivative computation
+    \item The derivative formula involves division by $l^2$, leading to near-infinite values
+    \item Analytical derivatives produced essentially zero values (std = 0.0002)
+    \item This resulted in all-zero coefficients in SINDy regression
+\end{itemize}
+
+\textbf{Why this happened:} With sparse, noisy data, the GP optimization found a degenerate solution where the length scale collapsed to near-zero, essentially treating each data point as independent.
+
+\subsection{Matern32 Kernel (Intermediate Attempt)}
+
+We briefly tried the Matern32 kernel as an alternative:
+
+\begin{equation}
+k(r) = \sigma^2\left(1 + \frac{\sqrt{3}r}{l}\right)\exp\left(-\frac{\sqrt{3}r}{l}\right), \quad r = |x - x'|
+\end{equation}
+
+This kernel is less smooth than squared exponential but more flexible than RQ in some contexts. However, we did not fully evaluate this option before moving to squared exponential.
+
+\subsection{Squared Exponential Kernel (Final Choice)}
+
+Following the approach in Wang \& Barber (2014) \cite{wang2014}, we adopted the squared exponential (SE) kernel:
+
+\begin{equation}
+k(x, x') = \sigma^2 \exp\left(-\frac{(x-x')^2}{2l^2}\right)
+\end{equation}
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item Well-established for smooth functions (appropriate for ODE trajectories)
+    \item Stable analytical derivatives
+    \item Proven effective in GP-ODE gradient matching literature
+    \item Simpler parameter space (2 parameters: $l$, $\sigma_f$) compared to RQ (3 parameters)
+    \item Less prone to degenerate solutions with sparse data
+\end{itemize}
+
+\section{Basis Function Selection}
+
+\subsection{Linear Basis Function (Initial Attempt)}
+
+Initially, we used a linear basis function, which allows the GP to model trends:
+
+\begin{equation}
+\mu(x) = h(x)^T \beta, \quad h(x) = [1, x]^T
+\end{equation}
+
+\textbf{Issues:}
+\begin{itemize}
+    \item For variable Y (predator), GP fit quality was extremely poor (R² = 0.0221)
+    \item The GP mean became nearly constant, producing zero derivatives
+    \item This was likely due to overfitting to the linear trend rather than the kernel structure
+\end{itemize}
+
+\subsection{Constant Basis Function (Final Choice)}
+
+We switched to a constant basis function:
+
+\begin{equation}
+\mu(x) = \beta_0
+\end{equation}
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item Matches the approach in Wang \& Barber (2014)
+    \item Forces the GP kernel to capture all structure (no linear trend assumption)
+    \item Improved Y GP fit quality significantly
+    \item Both X and Y derivatives became non-zero and reasonable
+    \item More appropriate for oscillatory dynamics where linear trends are not expected
+\end{itemize}
+
+\section{Analytical GP Derivative Computation}
+
+\subsection{Mathematical Foundation}
+
+For a GP with mean function $\mu(x)$ and covariance function $k(x, x')$, the derivative is itself a GP with:
+\begin{itemize}
+    \item Mean: $\mu'(x) = \frac{\partial \mu(x)}{\partial x}$
+    \item Covariance: $k'(x, x') = \frac{\partial^2 k(x, x')}{\partial x \partial x'}$
+\end{itemize}
+
+For prediction at new points $X_*$, the derivative mean is:
+\begin{equation}
+\mu'(X_*) = K'(X_*, X) K(X, X)^{-1} y
+\end{equation}
+
+where $K'(X_*, X)$ is the cross-covariance matrix of derivatives.
+
+\subsection{Implementation for Squared Exponential Kernel}
+
+For the SE kernel, the derivative formulas are:
+\begin{align}
+\frac{\partial k(x, x')}{\partial x} &= -\frac{\sigma^2}{l^2}(x - x') \exp\left(-\frac{(x-x')^2}{2l^2}\right) \\
+\frac{\partial^2 k(x, x')}{\partial x \partial x'} &= \frac{\sigma^2}{l^2}\left(1 - \frac{(x-x')^2}{l^2}\right) \exp\left(-\frac{(x-x')^2}{2l^2}\right)
+\end{align}
+
+\subsection{Finite Differences Fallback}
+
+To ensure robustness, we implemented a finite differences fallback mechanism:
+
+\begin{lstlisting}[language=Matlab, basicstyle=\small]
+if std(deriv_gp) < 0.01 || isnan(std(deriv_gp))
+    % Fallback to finite differences on GP mean
+    dt = mean(diff(X_new));
+    deriv_gp = gradient(gp_mean, dt);
+end
+\end{lstlisting}
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item Detects when analytical derivatives are unreliable (near-zero variance)
+    \item Provides a stable alternative when kernel parameters are problematic
+    \item Finite differences on the GP mean are still better than finite differences on raw noisy data
+    \item Ensures the pipeline always produces usable derivatives
+\end{itemize}
+
+\section{GP Sampling Strategy}
+
+\subsection{Posterior Sampling}
+
+We sample full curves from the GP posterior distribution rather than just adding noise to the mean:
+
+\begin{equation}
+f_* \sim \mathcal{N}(\mu_*, \Sigma_*)
+\end{equation}
+
+where $\mu_*$ and $\Sigma_*$ are the GP predictive mean and covariance at new points.
+
+\textbf{Benefits:}
+\begin{itemize}
+    \item Respects the full covariance structure of the GP
+    \item Provides realistic variability that accounts for uncertainty
+    \item Each sampled curve is a valid GP realization
+    \item More principled than adding independent noise to the mean
+\end{itemize}
+
+\subsection{Data Combination Strategy}
+
+We combine GP mean and samples using an interleaving strategy:
+\begin{itemize}
+    \item Even indices: Use GP mean (smooth, denoised estimate)
+    \item Odd indices: Use GP samples (captures variability)
+    \item Original data points: Preserved at their exact time locations
+\end{itemize}
+
+This provides both the smooth mean estimate and the variability from sampling, giving ESINDy a richer dataset while maintaining connection to the original observations.
+
+\section{Code Structure and Implementation}
+
+\subsection{Key Functions}
+
+\textbf{\texttt{gp\_derivative\_analytical.m:}}
+\begin{itemize}
+    \item Computes analytical derivatives for multiple kernel types
+    \item Supports Squared Exponential, Matern32, and Rational Quadratic
+    \item Includes fallback to finite differences
+    \item Handles kernel-specific parameter extraction
+\end{itemize}
+
+\textbf{\texttt{sample\_gp\_posterior.m:}}
+\begin{itemize}
+    \item Samples full curves from GP posterior
+    \item Supports multiple kernel types
+    \item Computes full covariance matrices for proper sampling
+\end{itemize}
+
+\textbf{\texttt{lotka\_volterra\_comparison.m:}}
+\begin{itemize}
+    \item Main comparison script
+    \item Implements both Path 1 and Path 2
+    \item Handles data generation, GP fitting, sampling, and ESINDy execution
+    \item Includes comprehensive diagnostics and visualization
+\end{itemize}
+
+\section{Results and Current Status}
+
+\subsection{GP Fitting Quality}
+
+With squared exponential kernel and constant basis:
+\begin{itemize}
+    \item X (Prey) GP: R² = 0.9836 (excellent fit)
+    \item Y (Predator) GP: R² improved significantly (from 0.0221 with linear basis)
+    \item Both derivatives are non-zero and reasonable
+    \item Kernel parameters are stable (no near-zero length scales)
+\end{itemize}
+
+\subsection{Derivative Quality}
+
+\begin{itemize}
+    \item X derivative: std = 4.30 (non-zero, captures dynamics)
+    \item Y derivative: std = 2.24 (non-zero, captures dynamics)
+    \item Both derivatives computed analytically from GP
+    \item Finite differences fallback available but not needed with current setup
+\end{itemize}
+
+\subsection{Model Performance}
+
+Path 1 (Direct ESINDy):
+\begin{itemize}
+    \item Uses 6 averaged data points
+    \item Discrete-time formulation
+    \item Library: [1, x, y, x², y², xy] (6 functions)
+    \item RMSE: X = 0.16, Y = 0.11 (Average = 0.14)
+\end{itemize}
+
+Path 2 (GP-enhanced ESINDy):
+\begin{itemize}
+    \item Uses 50 combined points (6 original + 44 GP-sampled)
+    \item Continuous-time formulation with GP derivatives
+    \item Expanded library: [1, x, y, x², y², xy, x³, y³, x²y, xy²] (10 functions)
+    \item Currently experiencing model instability (high RMSE)
+    \item Likely due to overfitting with expanded library or integration issues
+\end{itemize}
+
+\section{Lessons Learned}
+
+\subsection{What Worked}
+
+\begin{enumerate}
+    \item \textbf{Squared Exponential Kernel:} Stable, well-behaved, appropriate for smooth ODE trajectories
+    \item \textbf{Constant Basis Function:} Better than linear for oscillatory dynamics
+    \item \textbf{Analytical Derivatives:} More principled than finite differences, especially with sparse data
+    \item \textbf{Posterior Sampling:} Provides realistic data augmentation
+    \item \textbf{Finite Differences Fallback:} Essential safety mechanism for robustness
+    \item \textbf{Increased Data Density:} 18 points (3 replicates) much better than 6 points
+\end{enumerate}
+
+\subsection{What Didn't Work}
+
+\begin{enumerate}
+    \item \textbf{Rational Quadratic Kernel:} Prone to degenerate solutions (length scale → 0) with sparse data
+    \item \textbf{Linear Basis Function:} Overfitted to trends, poor fit for oscillatory Y variable
+    \item \textbf{Very Sparse Data:} 6 points insufficient for reliable GP hyperparameter estimation
+    \item \textbf{Expanded Library:} May cause overfitting; needs regularization or model selection
+\end{enumerate}
+
+\subsection{Key Insights}
+
+\begin{enumerate}
+    \item Kernel choice is critical for sparse data—simpler kernels (SE) more robust than complex ones (RQ)
+    \item Basis function choice should match problem structure (constant better than linear for oscillations)
+    \item GP hyperparameter optimization can find degenerate solutions—need diagnostics and fallbacks
+    \item Analytical derivatives are superior but require stable kernel parameters
+    \item More data (even with replicates) significantly improves GP fitting
+    \item Model complexity (library size) must be balanced with data availability
+\end{enumerate}
+
+\section{Future Directions}
+
+\subsection{Potential Improvements}
+
+\begin{enumerate}
+    \item \textbf{Hyperparameter Constraints:} Set minimum length scale bounds to prevent degenerate solutions
+    \item \textbf{Model Selection:} Implement cross-validation or information criteria for library selection
+    \item \textbf{Regularization:} Add stronger sparsity penalties for expanded library
+    \item \textbf{Uncertainty Quantification:} Propagate GP uncertainty through to SINDy coefficients
+    \item \textbf{Alternative Kernels:} Explore periodic kernels for oscillatory dynamics
+    \item \textbf{Multi-scale Approaches:} Use composite kernels (e.g., SE + periodic) for complex dynamics
+\end{enumerate}
+
+\section{Conclusion}
+
+This development session successfully implemented a GP-enhanced SINDy pipeline for Lotka-Volterra system identification. Through iterative refinement, we identified that:
+
+\begin{itemize}
+    \item Squared exponential kernel with constant basis function provides stable, high-quality GP fits
+    \item Analytical GP derivatives are computable and reliable with appropriate kernel choices
+    \item Data augmentation through GP posterior sampling provides principled expansion of sparse datasets
+    \item Robust fallback mechanisms are essential for production code
+\end{itemize}
+
+The current implementation provides a solid foundation for comparing direct ESINDy with GP-enhanced approaches, with clear paths for further improvement in model selection and regularization.
+
+\section{References}
+
+\begin{itemize}
+    \item Wang, Y., \& Barber, D. (2014). Gaussian Processes for Bayesian Estimation in Ordinary Differential Equations. \textit{ICML}.
+    \item Brunton, S. L., Proctor, J. L., \& Kutz, J. N. (2016). Discovering governing equations from data by sparse identification of nonlinear dynamical systems. \textit{PNAS}, 113(15), 3932-3937.
+    \item Rasmussen, C. E., \& Williams, C. K. I. (2006). \textit{Gaussian Processes for Machine Learning}. MIT Press.
+\end{itemize}
+
+\end{document}
+
