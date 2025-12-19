@@ -69,6 +69,28 @@ function [deriv_mean, deriv_var] = gp_derivative_analytical(gprMdl, X_new)
         % Second derivative for K_deriv_XX (simplified)
         K_deriv_XX = sigma_f^2 * 3 / l^2 * (1 - sqrt3 * r_deriv_XX / l) .* exp(-sqrt3 * r_deriv_XX / l);
         
+    elseif strcmpi(kernelName, 'RationalQuadratic')
+        % Rational Quadratic kernel: k(x,x') = σ²(1 + (x-x')²/(2αl²))^(-α)
+        % MATLAB stores as [SigmaL, AlphaRQ, SigmaF]
+        if length(kernelParams) >= 3
+            l = kernelParams(1);         % Length scale (SigmaL)
+            alpha = kernelParams(2);     % Shape parameter (AlphaRQ)
+            sigma_f = kernelParams(3);   % Signal std (SigmaF)
+        else
+            error('RationalQuadratic kernel requires 3 parameters: [l, alpha, sigma_f]');
+        end
+        
+        d2_XX = d_XX.^2;
+        d2_deriv_X = d_deriv_X.^2;
+        d2_deriv_XX = d_deriv_XX.^2;
+        
+        K_XX = sigma_f^2 * (1 + d2_XX / (2*alpha*l^2)).^(-alpha);
+        % Derivative of RQ kernel: ∂k/∂x* = -σ² * (x*-x) / l² * (1 + (x*-x)²/(2αl²))^(-α-1)
+        % Note: The α cancels in the numerator, leaving just (x*-x)/l²
+        K_deriv_X = -sigma_f^2 * d_deriv_X / l^2 .* (1 + d2_deriv_X / (2*alpha*l^2)).^(-alpha-1);
+        % Second derivative: ∂²k/(∂x*∂x*') = σ²/l² * [1 - (α+1)(x*-x*')²/(2αl²)] * (1 + (x*-x*')²/(2αl²))^(-α-1)
+        K_deriv_XX = sigma_f^2 / l^2 * (1 - (alpha+1)*d2_deriv_XX / (2*alpha*l^2)) .* (1 + d2_deriv_XX / (2*alpha*l^2)).^(-alpha-1);
+        
     else
         warning('Kernel %s not fully supported for analytical derivatives. Using finite differences approximation.', kernelName);
         % Fallback: use finite differences on GP mean

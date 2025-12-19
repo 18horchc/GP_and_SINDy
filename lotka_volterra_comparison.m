@@ -190,22 +190,29 @@ y2_gp = y_sparse_noisy(:);
 % For Lotka-Volterra with oscillatory behavior, Matern or rational quadratic
 % might work better than squared exponential.
 
-% Try different kernels and basis functions to get better fit
-% For oscillatory Lotka-Volterra data with only 6 points, we need careful tuning
+% Try Rational Quadratic kernel for better fit
+% Rational Quadratic is more flexible than Matern32 and can capture
+% multiple length scales, which is good for oscillatory data
+% 
+% NOTE: For composite kernels, we'd need custom kernel functions, which
+% makes parameter extraction for derivatives more complex. Starting with
+% Rational Quadratic as it's built-in and more flexible than Matern32.
 
-% Try linear basis function instead of constant (allows for trends)
-% This often works better with sparse data
-fprintf('Fitting GP models...\n');
+% Using Squared Exponential kernel (as in Wang & Barber 2014)
+% This kernel is well-suited for smooth functions and has stable analytical derivatives
+% The paper uses GP gradient matching for ODE parameter estimation, similar to our approach
+% Note: The paper uses constant basis functions for simplicity
+fprintf('Fitting GP models with Squared Exponential kernel (Wang & Barber approach)...\n');
 gprMdl_x = fitrgp(X_gp, y1_gp, ...
-    'KernelFunction', 'matern32', ...
-    'BasisFunction', 'linear', ...  % Changed from 'constant' to 'linear'
+    'KernelFunction', 'squaredexponential', ...
+    'BasisFunction', 'constant', ...  % Constant basis (as in Wang & Barber)
     'FitMethod', 'exact', ...
     'PredictMethod', 'exact', ...
     'Standardize', false);
 
 gprMdl_y = fitrgp(X_gp, y2_gp, ...
-    'KernelFunction', 'matern32', ...
-    'BasisFunction', 'linear', ...  % Changed from 'constant' to 'linear'
+    'KernelFunction', 'squaredexponential', ...
+    'BasisFunction', 'constant', ...  % Constant basis (as in Wang & Barber)
     'FitMethod', 'exact', ...
     'PredictMethod', 'exact', ...
     'Standardize', false);
@@ -228,18 +235,23 @@ X_dense = t_dense(:);
 [y1pred, y1pred_std, ~] = predict(gprMdl_x, X_dense);
 [y2pred, y2pred_std, ~] = predict(gprMdl_y, X_dense);
 
+% Check GP predictions
+fprintf('GP prediction diagnostics:\n');
+fprintf('  X mean: range=[%.4f, %.4f], std=%.4f\n', min(y1pred), max(y1pred), std(y1pred));
+fprintf('  Y mean: range=[%.4f, %.4f], std=%.4f\n', min(y2pred), max(y2pred), std(y2pred));
+
 % Ensure non-negative
 y1pred = max(0.01, y1pred);
 y2pred = max(0.01, y2pred);
 
-% Sample proper GP curves from the posterior distribution
-% This gives us actual GP sample curves, not just noisy mean estimates
-% Each sample is a full curve that respects the GP covariance structure
-num_gp_samples = 1;  % Number of GP curves to sample
+% Sample ONE GP curve from the posterior distribution per run
+% This gives us a full curve that respects the GP covariance structure
+% Each run will sample a different curve, providing variability
+num_gp_samples = 1;  % One curve per run (as requested)
 y1_gp_samples = sample_gp_posterior(gprMdl_x, X_dense, num_gp_samples);
 y2_gp_samples = sample_gp_posterior(gprMdl_y, X_dense, num_gp_samples);
 
-% Use the first (and only) sample curve
+% Use the sampled curve
 y1_sampled = y1_gp_samples(:, 1);
 y2_sampled = y2_gp_samples(:, 1);
 
@@ -247,16 +259,29 @@ y2_sampled = y2_gp_samples(:, 1);
 y1_sampled = max(0.01, y1_sampled);
 y2_sampled = max(0.01, y2_sampled);
 
-% Combine original 6 points with new simulated data
-% Use original points where available, GP samples elsewhere
+% Combine GP mean AND samples for data usage in Path 2
+% Strategy: Use GP mean at some points, GP samples at others
+% This gives us both the smooth mean estimate and the variability from sampling
 t_combined = t_dense;  % Use dense time grid
-x_combined = y1_sampled;  % Start with GP samples
-y_combined = y2_sampled;
 
-% Replace with original noisy data at original time points
-% Since we have multiple points at the same time, we'll use the mean of replicates
-% at each unique time point, or we can keep all 18 points
-% For now, let's use all 18 original points where they match the dense grid
+% Interleave GP mean and samples: use mean at even indices, samples at odd indices
+% This gives us a mix of both
+x_combined = zeros(size(t_dense));
+y_combined = zeros(size(t_dense));
+for i = 1:length(t_dense)
+    if mod(i, 2) == 0
+        % Even indices: use GP mean
+        x_combined(i) = y1pred(i);
+        y_combined(i) = y2pred(i);
+    else
+        % Odd indices: use GP sample
+        x_combined(i) = y1_sampled(i);
+        y_combined(i) = y2_sampled(i);
+    end
+end
+
+% Replace with original noisy data at original time points (use mean of replicates)
+% This ensures we keep the actual observed data
 t_sparse_unique = unique(t_sparse);
 for i = 1:length(t_sparse_unique)
     t_i = t_sparse_unique(i);
@@ -291,6 +316,69 @@ fprintf('Combined dataset: %d points (%d original + %d GP-sampled)\n', ...
 % quantification from the GP framework.
 [y1_deriv_gp, y1_deriv_var] = gp_derivative_analytical(gprMdl_x, X_dense);
 [y2_deriv_gp, y2_deriv_var] = gp_derivative_analytical(gprMdl_y, X_dense);
+
+% Check for stability issues and print diagnostics
+fprintf('GP derivative diagnostics:\n');
+fprintf('  X derivative: mean=%.4f, std=%.4f, min=%.4f, max=%.4f\n', ...
+        mean(y1_deriv_gp), std(y1_deriv_gp), min(y1_deriv_gp), max(y1_deriv_gp));
+fprintf('  Y derivative: mean=%.4f, std=%.4f, min=%.4f, max=%.4f\n', ...
+        mean(y2_deriv_gp), std(y2_deriv_gp), min(y2_deriv_gp), max(y2_deriv_gp));
+
+% Print kernel hyperparameters for debugging
+params_x = gprMdl_x.KernelInformation.KernelParameters;
+params_y = gprMdl_y.KernelInformation.KernelParameters;
+kernel_name = gprMdl_x.KernelInformation.Name;
+if strcmpi(kernel_name, 'SquaredExponential')
+    % Squared Exponential: [SigmaL, SigmaF] = [l, sigma_f]
+    fprintf('  X GP kernel params: l=%.4f, sigma_f=%.4f\n', params_x(1), params_x(2));
+    fprintf('  Y GP kernel params: l=%.4f, sigma_f=%.4f\n', params_y(1), params_y(2));
+elseif strcmpi(kernel_name, 'RationalQuadratic')
+    % Rational Quadratic: [SigmaL, AlphaRQ, SigmaF] = [l, alpha, sigma_f]
+    fprintf('  X GP kernel params: l=%.4f, alpha=%.4f, sigma_f=%.4f\n', ...
+            params_x(1), params_x(2), params_x(3));
+    fprintf('  Y GP kernel params: l=%.4f, alpha=%.4f, sigma_f=%.4f\n', ...
+            params_y(1), params_y(2), params_y(3));
+else
+    % Other kernels - print all parameters
+    fprintf('  X GP kernel params: %s\n', mat2str(params_x));
+    fprintf('  Y GP kernel params: %s\n', mat2str(params_y));
+end
+
+% Check for problematic hyperparameters (for any kernel)
+min_length_scale = 0.01;  % Minimum reasonable length scale
+if params_x(1) < min_length_scale
+    warning('Path 2: X GP length scale (l=%.4f) is too small. This may cause numerical instability.', params_x(1));
+    fprintf('  This is likely due to the GP optimization finding a poor local minimum with sparse/noisy data.\n');
+end
+if params_y(1) < min_length_scale
+    warning('Path 2: Y GP length scale (l=%.4f) is too small. This may cause numerical instability.', params_y(1));
+end
+
+if any(isnan(y1_deriv_gp)) || any(isinf(y1_deriv_gp))
+    warning('Path 2: GP derivative for X contains NaN or Inf values. This may cause issues.');
+end
+if any(isnan(y2_deriv_gp)) || any(isinf(y2_deriv_gp))
+    warning('Path 2: GP derivative for Y contains NaN or Inf values. This may cause issues.');
+end
+% Check if analytical derivatives are reliable
+% If derivative variance is too low, the analytical computation may be incorrect
+% (e.g., due to kernel-specific issues) - use finite differences as fallback
+y1_deriv_std = std(y1_deriv_gp);
+if isnan(y1_deriv_std) || y1_deriv_std < 0.01
+    warning('Path 2: GP derivative for X has very low variance (std=%.4f). Using finite differences fallback.', y1_deriv_std);
+    % Fallback to finite differences if analytical derivative is too small
+    dt = mean(diff(X_dense));
+    y1_deriv_gp = gradient(y1pred, dt);
+    fprintf('  Using finite differences for X derivative (new std=%.4f)\n', std(y1_deriv_gp));
+end
+y2_deriv_std = std(y2_deriv_gp);
+if isnan(y2_deriv_std) || y2_deriv_std < 0.01 || all(abs(y2_deriv_gp) < 1e-10)
+    warning('Path 2: GP derivative for Y has very low variance (std=%.4f). Using finite differences fallback.', y2_deriv_std);
+    fprintf('  Y GP fit quality (R²=%.4f) is poor - GP mean may be nearly constant.\n', r2_y);
+    dt = mean(diff(X_dense));
+    y2_deriv_gp = gradient(y2pred, dt);
+    fprintf('  Using finite differences for Y derivative (new std=%.4f)\n', std(y2_deriv_gp));
+end
 
 % Derivatives are already computed on t_dense, which matches t_combined
 y1_deriv_combined = y1_deriv_gp;
