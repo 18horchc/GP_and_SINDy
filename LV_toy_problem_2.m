@@ -51,24 +51,26 @@ fprintf('Path 1 (Poly) Discovered Coefficients:\n'); disp(Xi_Path1);
 fprintf('Path 2 (GP) Discovered Coefficients:\n'); disp(Xi_Path2);
 
 %% 5. INTEGRATE DISCOVERED MODELS
-% We define a function to use the Xi coefficients with our library structure
 t_sim = linspace(0, 15, 200);
-x0 = X_true(1,:)'; % Ensure initial condition is a column vector
+x0 = X_true(1,:)'; 
 
-% Path 1 Reconstruction (2nd Order Library)
-% Added ( )' to convert the row vector result into a column vector
+% Path 1 Integration
 rhs_path1 = @(t,x) ([ones(1,1), x(1), x(2), x(1)^2, x(2)^2, x(1)*x(2)] * Xi_Path1)';
+try
+    [t_rec1, X_rec1] = ode45(rhs_path1, t_sim, x0);
+catch
+    warning('Path 1 diverged. Setting to zero for plotting.');
+    X_rec1 = nan(length(t_sim), 2); t_rec1 = t_sim;
+end
 
-[t_rec1, X_rec1] = ode45(rhs_path1, t_sim, x0);
-
-% Path 2 Reconstruction (3rd Order Library)
-% Added ( )' to convert the row vector result into a column vector
-rhs_path2 = @(t,x) ([ones(1,1), x(1), x(2), x(1)^2, x(2)^2, x(1)*x(2)] * Xi_Path2)' 
-
-                    %x(1)^3, x(2)^3, (x(1)^2)*x(2), x(1)*(x(2)^2)] * Xi_Path2)';
-
-[t_rec2, X_rec2] = ode45(rhs_path2, t_sim, x0);
-
+% Path 2 Integration
+rhs_path2 = @(t,x) ([ones(1,1), x(1), x(2), x(1)^2, x(2)^2, x(1)*x(2)] * Xi_Path2)';
+try
+    [t_rec2, X_rec2] = ode45(rhs_path2, t_sim, x0);
+catch
+    warning('Path 2 diverged. Setting to zero for plotting.');
+    X_rec2 = nan(length(t_sim), 2); t_rec2 = t_sim;
+end
 %% 6. PLOTTING RESULTS
 
 % --- FIGURE 1: GROUND TRUTH ---
@@ -130,19 +132,41 @@ end
 
 function [t_new, X_gp, dX_gp] = fitAndPlotGP_Multi(t, X, n_points)
     t_new = linspace(min(t), max(t), n_points)';
-    X_gp = zeros(n_points, 2); dX_gp = zeros(n_points, 2);
-    for i = 1:2
-        % Using the analytical derivative logic from our previous step
-        gprMdl = fitrgp(t, X(:,i), 'KernelFunction', 'squaredexponential', 'Standardize', true);
+    num_vars = size(X, 2);
+    X_gp = zeros(n_points, num_vars); 
+    dX_gp = zeros(n_points, num_vars);
+    
+    figure('Name', 'GP Internal Fit Diagnostic', 'Color', 'w'); 
+    for i = 1:num_vars
+        % FIX: Changed 'NoiseSigma' to 'Sigma' 
+        % We use 'BasisFunction', 'Constant' because populations are not zero-mean
+        gprMdl = fitrgp(t, X(:,i), ...
+            'KernelFunction', 'squaredexponential', ...
+            'BasisFunction', 'constant', ...
+            'Standardize', true, ...
+            'Sigma', 0.5); % Matches your simulated noise level
+
         [mu, ~, ~] = predict(gprMdl, t_new);
         X_gp(:,i) = mu;
         
-        % Analytical Derivative calc (simplified for brevity)
+        % Plotting the GP mean vs the 6 points to verify it isn't "wiggly"
+        subplot(2,1,i);
+        scatter(t, X(:,i), 60, 'ko', 'DisplayName', '6 Raw Samples'); hold on;
+        plot(t_new, mu, 'r-', 'LineWidth', 2, 'DisplayName', 'GP Interpolant');
+        ylabel(['Species ', num2str(i)]); grid on; legend('Location', 'best');
+        
+        % Analytical Derivative calculation
         L = gprMdl.KernelInformation.KernelParameters(1);
         sf = gprMdl.KernelInformation.KernelParameters(2);
-        dist = t_new - gprMdl.X';
-        K = (sf^2) * exp(-0.5 * (dist.^2) / L^2);
-        dK = K .* (-dist / L^2);
-        dX_gp(:,i) = dK * gprMdl.Alpha;
+        X_train = gprMdl.X; % Training inputs
+        alpha = gprMdl.Alpha;
+        
+        for j = 1:n_points
+            dist = t_new(j) - X_train;
+            % Squared Exponential Derivative: K(x,x') * (-(x - x') / L^2)
+            K = (sf^2) * exp(-0.5 * (dist.^2) / L^2);
+            dK = K .* (-dist / L^2);
+            dX_gp(j,i) = sum(alpha .* dK);
+        end
     end
 end
