@@ -12,7 +12,9 @@ function Xi = pool_STLSQ(Theta, dXdt, lambda, iterations)
         for j = 1:size(dXdt, 2) % For each state variable
             big_indices = ~small_indices(:, j);
             % Regress only on the significant indices
-            Xi(big_indices, j) = Theta(:, big_indices) \ dXdt(:, j);
-        end
+            % Use ridge regression (small alpha) to handle the rank deficiency
+            lambda_ridge = 1e-6; 
+            T_sub = Theta(:, big_indices);
+            Xi(big_indices, j) = (T_sub' * T_sub + lambda_ridge * eye(size(T_sub,2))) \ (T_sub' * dXdt(:, j));        end
     end
 end

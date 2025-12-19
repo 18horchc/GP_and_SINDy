@@ -53,6 +53,8 @@ fprintf('Running Path B (Gaussian Process)...\n');
 
 % 3b. Run ESINDy on the GP-augmented data
 [Xi_B, ~] = run_ESINDy(X_gp, dX_gp, lambda_sindy, 50, 0.9);
+disp('Path B Coefficients:');
+disp(Xi_B);
 
 % 3c. Integrate Discovered Model B
 odefun_B = @(t,x) reconstruct_dynamics(t, x, Xi_B);
