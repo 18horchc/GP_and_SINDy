@@ -55,38 +55,32 @@ box on; grid off;
 % =====================================================================
 tgrid = linspace(0,14,400)';   % time grid for smooth curves
 
-% --- Hyperparameters (simple defaults, tweak as needed) ---
-% ell in "days": how quickly the curve can change.
-ell_data = 2.0;
-
-% signal variance: scale to data variability
+% --- Hyperparameters ---
 sf2_M1 = var(datapointsM1);
 sf2_M2 = var(datapointsM2);
 
-
 % --- Positivity via log transform ---
-c1 = 1; % pseudo-count (try 0.5, 1, or 5 depending on scale)
-z1 = log(datapointsM1 + c1);
+c1 = 1; z1 = log(datapointsM1 + c1);
+c2 = 1; z2 = log(datapointsM2 + c2);
 
-c2 = 1;
-z2 = log(datapointsM2 + c2);
-
-
-% noise std: controls "close vs exact". Smaller -> hugs points harder.
-% If you want nearly exact interpolation, try sigma_n = 1e-3*std(y).
+% Noise setup
 sigma_n_M1 = 0.15 * std(z1);
 sigma_n_M2 = 0.15 * std(z2);
 
+% === NEW: AUTO-OPTIMIZE ELL ===
+fprintf('Optimizing M1...\n');
+ell_M1 = optimize_ell_1D(tpoints_M1, z1, var(z1), sigma_n_M1, kernel);
 
+fprintf('Optimizing M2...\n');
+ell_M2 = optimize_ell_1D(tpoints_M2, z2, var(z2), sigma_n_M2, kernel);
+% ==============================
 
-
-% Compute posterior for each dataset
+% Now use ell_M1 and ell_M2 in your posterior calls:
 [mu1z, s21z, Fpost1z] = gp_posterior_and_samples( ...
-    tpoints_M1, z1, tgrid, ell_data, var(z1), sigma_n_M1, nsamp, kernel);
+    tpoints_M1, z1, tgrid, ell_M1, var(z1), sigma_n_M1, nsamp, kernel);
 
 [mu2z, s22z, Fpost2z] = gp_posterior_and_samples( ...
-    tpoints_M2, z2, tgrid, ell_data, var(z2), sigma_n_M2, nsamp, kernel);
-
+    tpoints_M2, z2, tgrid, ell_M2, var(z2), sigma_n_M2, nsamp, kernel);
 
 % transform mean + samples back to strictly-positive scale (y + c)
 mu1 = exp(mu1z);
@@ -219,4 +213,57 @@ var_s = max(diag(Sigma_s), 0);
 % Draw posterior samples
 m = mu_s;
 Fsamp = gp_sample(m, Sigma_s, nsamp);
+end
+
+function best_ell = optimize_ell_1D(xtrain, ytrain, current_sf2, current_sigma_n, kernel_func)
+% OPTIMIZE_ELL_1D Finds the best lengthscale by minimizing Negative Log Likelihood
+%
+% Inputs:
+%   xtrain, ytrain: The data (in the transformed log-space z)
+%   current_sf2:    Signal variance (kept fixed)
+%   current_sigma_n: Noise standard deviation (kept fixed)
+%   kernel_func:    Function handle for the kernel (e.g. @se_kernel)
+
+    % Define the objective function (NLL) as a function of ell
+    % We search in the range [0.1, 10] days. Adjust bounds if needed.
+    obj_fun = @(ell_guess) gp_neg_log_likelihood(ell_guess, xtrain, ytrain, ...
+                                                 current_sf2, current_sigma_n, kernel_func);
+
+    % Use fminbnd for simple 1D optimization
+    options = optimset('Display','off');
+    best_ell = fminbnd(obj_fun, 0.1, 10.0, options);
+
+    fprintf('Optimized lengthscale: %.4f\n', best_ell);
+end
+
+function NLL = gp_neg_log_likelihood(ell, x, y, sf2, sigma_n, kernel)
+    x = x(:); y = y(:);
+    n = length(y);
+    
+    % 1. Construct Covariance Matrix K
+    K = kernel(x, x, ell, sf2);
+    
+    % 2. Add Noise (and small jitter for stability)
+    Kyy = K + (sigma_n^2 * eye(n)) + (1e-9 * eye(n));
+    
+    % 3. Cholesky Decomposition (L * L' = Kyy)
+    [L, p] = chol(Kyy, 'lower');
+    if p > 0
+        NLL = inf; % Penalty if matrix is not positive definite
+        return;
+    end
+    
+    % 4. Compute NLL terms
+    % Term 1: Data fit = 0.5 * y' * K^-1 * y
+    alpha = L' \ (L \ y);
+    data_fit = 0.5 * y' * alpha;
+    
+    % Term 2: Complexity penalty = 0.5 * log|K| = sum(log(diag(L)))
+    complexity = sum(log(diag(L)));
+    
+    % Term 3: Normalization constant (0.5 * n * log(2pi))
+    % (constant, so often ignored in optimization, but strictly part of NLL)
+    normalization = 0.5 * n * log(2*pi);
+    
+    NLL = data_fit + complexity + normalization;
 end
