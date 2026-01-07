@@ -28,11 +28,20 @@ cd Van_der_Pol
 phase1_data_generation
 ```
 
-### Phase 2: GP Implementation (In Progress)
+### Phase 2: GP Implementation ✅
+- `fit_gp_vdp.m` - Fit GP models and compute analytical derivatives
+- `phase2_gp_implementation.m` - Main script for Phase 2
 - GP fitting on sparse noisy data
 - GP prediction on dense time grid
 - Analytical derivative computation
-- GP quality validation
+- GP quality validation (R² metrics)
+
+**Usage:**
+```matlab
+cd Van_der_Pol
+% Make sure Phase 1 has been run first
+phase2_gp_implementation
+```
 
 ### Phase 3: SINDy-Only Implementation (Planned)
 - Finite difference derivatives
@@ -55,7 +64,9 @@ phase1_data_generation
 
 ## Files
 
-- `vdp_data.mat` - Saved data from Phase 1 (generated after running phase1_data_generation.m)
+- `vdp_data.mat` - Saved data from all phases (generated after running phase scripts)
+  - Phase 1: Ground truth, sparse noisy data
+  - Phase 2: GP models, predictions, and derivatives
 
 ## Results
 
