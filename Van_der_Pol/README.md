@@ -75,10 +75,21 @@ cd Van_der_Pol
 phase4_gp_sindy
 ```
 
-### Phase 5: Comparison & Analysis (Planned)
-- Metrics computation
-- Statistical comparison
-- Visualizations
+### Phase 5: Comparison & Analysis ✅
+- `compute_true_vdp_coefficients.m` - Compute true Van der Pol coefficients for comparison
+- `compute_comprehensive_metrics.m` - Compute comprehensive metrics for all methods
+- `phase5_comparison_analysis.m` - Main script for Phase 5
+- Comprehensive metrics computation (trajectory, derivative, coefficient metrics)
+- Statistical comparison between methods
+- Improvement analysis (GP+SINDy vs SINDy-only)
+- Summary visualizations and tables
+
+**Usage:**
+```matlab
+cd Van_der_Pol
+% Make sure Phases 1-4 have been run first
+phase5_comparison_analysis
+```
 
 ### Phase 6: Refinement (Planned)
 - Parameter sensitivity
@@ -91,6 +102,7 @@ phase4_gp_sindy
   - Phase 2: GP models, predictions, and derivatives
   - Phase 3: SINDy coefficients, discovered model, and trajectory
   - Phase 4: Augmented data, GP+SINDy coefficients, and trajectory
+  - Phase 5: Comprehensive metrics and comparison results
 
 ## Results
 
