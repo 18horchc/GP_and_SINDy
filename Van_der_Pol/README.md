@@ -60,10 +60,20 @@ cd Van_der_Pol
 phase3_sindy_only
 ```
 
-### Phase 4: GP+SINDy Implementation (Planned)
-- GP posterior sampling
-- Data augmentation
-- SINDy on enhanced dataset
+### Phase 4: GP+SINDy Implementation ✅
+- `augment_data_with_gp_samples.m` - Sample from GP posterior and augment sparse data
+- `phase4_gp_sindy.m` - Main script for Phase 4
+- GP posterior sampling to generate additional data points
+- Data augmentation (combining sparse + GP samples)
+- SINDy on enhanced dataset with improved derivatives
+- Forward integration and comparison with SINDy-only
+
+**Usage:**
+```matlab
+cd Van_der_Pol
+% Make sure Phases 1, 2, and 3 have been run first
+phase4_gp_sindy
+```
 
 ### Phase 5: Comparison & Analysis (Planned)
 - Metrics computation
@@ -80,6 +90,7 @@ phase3_sindy_only
   - Phase 1: Ground truth, sparse noisy data
   - Phase 2: GP models, predictions, and derivatives
   - Phase 3: SINDy coefficients, discovered model, and trajectory
+  - Phase 4: Augmented data, GP+SINDy coefficients, and trajectory
 
 ## Results
 
