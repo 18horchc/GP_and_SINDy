@@ -43,10 +43,22 @@ cd Van_der_Pol
 phase2_gp_implementation
 ```
 
-### Phase 3: SINDy-Only Implementation (Planned)
-- Finite difference derivatives
-- STLS algorithm
-- Forward integration of discovered model
+### Phase 3: SINDy-Only Implementation ✅
+- `compute_finite_differences.m` - Compute derivatives using finite differences
+- `build_library_vdp.m` - Build polynomial library matrix (up to order 3)
+- `run_sindy_stls.m` - Run Sequential Thresholded Least Squares algorithm
+- `forward_integrate_sindy.m` - Forward integrate discovered model
+- `phase3_sindy_only.m` - Main script for Phase 3
+- Finite difference derivatives from sparse noisy data
+- STLS algorithm for sparse model discovery
+- Forward integration and trajectory comparison
+
+**Usage:**
+```matlab
+cd Van_der_Pol
+% Make sure Phase 1 has been run first
+phase3_sindy_only
+```
 
 ### Phase 4: GP+SINDy Implementation (Planned)
 - GP posterior sampling
@@ -67,6 +79,7 @@ phase2_gp_implementation
 - `vdp_data.mat` - Saved data from all phases (generated after running phase scripts)
   - Phase 1: Ground truth, sparse noisy data
   - Phase 2: GP models, predictions, and derivatives
+  - Phase 3: SINDy coefficients, discovered model, and trajectory
 
 ## Results
 
