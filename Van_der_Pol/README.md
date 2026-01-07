@@ -91,9 +91,26 @@ cd Van_der_Pol
 phase5_comparison_analysis
 ```
 
-### Phase 6: Refinement (Planned)
-- Parameter sensitivity
-- Ablation studies
+### Phase 6: Refinement & Analysis ✅
+- `phase6_parameter_sensitivity.m` - Parameter sensitivity analysis
+- `phase6_statistical_analysis.m` - Statistical robustness analysis (50 trials)
+- Parameter sensitivity: Vary sparse points (5, 7, 9, 11, 15) and noise levels (5%, 10%, 15%, 20%)
+- Statistical analysis: 50 noise realizations with fixed parameters
+- Comprehensive visualizations: heatmaps, distributions, box plots
+- Summary statistics and improvement analysis
+
+**Usage:**
+```matlab
+cd Van_der_Pol
+% Make sure all phase functions are available
+% Parameter sensitivity analysis
+phase6_parameter_sensitivity
+
+% Statistical robustness analysis
+phase6_statistical_analysis
+```
+
+**Note:** Phase 6 does NOT modify previous phase code. All refinements use separate files.
 
 ## Files
 
