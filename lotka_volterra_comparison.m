@@ -296,7 +296,8 @@ end
 fprintf('Combined dataset: %d points (%d original + %d GP-sampled)\n', ...
         length(t_combined), length(t_sparse_unique), length(t_combined) - length(t_sparse_unique));
 
-% Compute GP derivative analytically
+% Compute GP derivative analytically for ALL points
+% Following Hsin et al. (2025): use GP analytical derivatives for all augmented data points
 % The derivative of a GP is itself a GP! We can compute it by differentiating
 % the covariance kernel directly, which is more principled than finite differences.
 %
@@ -307,13 +308,13 @@ fprintf('Combined dataset: %d points (%d original + %d GP-sampled)\n', ...
 %
 % How this fits into ESINDy workflow:
 % 1. We fit GP to sparse noisy data → get smooth function estimate
-% 2. We compute analytical derivative of GP → get smooth derivative estimate
+% 2. We compute analytical derivative of GP at ALL points (sparse + dense) → get smooth derivative estimate
 % 3. We use these derivatives in continuous-time SINDy: dX/dt = f(X)
 % 4. The GP derivative provides denoised, uncertainty-quantified derivatives
 %    that are more reliable than finite differences, especially with sparse data
 %
-% This gives us the analytical derivative at any point, with proper uncertainty
-% quantification from the GP framework.
+% Note: t_combined = t_dense, so we compute derivatives for all points in the combined dataset
+% This ensures consistent GP-derived derivatives throughout, matching Hsin et al. approach
 [y1_deriv_gp, y1_deriv_var] = gp_derivative_analytical(gprMdl_x, X_dense);
 [y2_deriv_gp, y2_deriv_var] = gp_derivative_analytical(gprMdl_y, X_dense);
 
@@ -380,7 +381,9 @@ if isnan(y2_deriv_std) || y2_deriv_std < 0.01 || all(abs(y2_deriv_gp) < 1e-10)
     fprintf('  Using finite differences for Y derivative (new std=%.4f)\n', std(y2_deriv_gp));
 end
 
-% Derivatives are already computed on t_dense, which matches t_combined
+% Use GP analytical derivatives for all points in t_combined
+% Since t_combined = t_dense, the derivatives are already computed for all points
+% This matches Hsin et al. (2025) approach: GP analytical derivatives for all augmented data
 y1_deriv_combined = y1_deriv_gp;
 y2_deriv_combined = y2_deriv_gp;
 

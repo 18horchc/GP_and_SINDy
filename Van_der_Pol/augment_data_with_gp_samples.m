@@ -15,8 +15,12 @@ function [t_aug, X_aug, dXdt_aug, augmentation_stats] = augment_data_with_gp_sam
 % Outputs:
 %   t_aug: Augmented time vector
 %   X_aug: Augmented state matrix
-%   dXdt_aug: Augmented derivatives (from GP analytical derivatives)
+%   dXdt_aug: Augmented derivatives (from GP analytical derivatives for ALL points)
 %   augmentation_stats: Structure with statistics
+%
+% Note: Following Hsin et al. (2025), this function uses GP analytical derivatives
+% for all augmented data points (both sparse and dense), providing consistent
+% denoised derivatives throughout rather than mixing finite differences with GP derivatives.
 
     if nargin < 6
         options = struct();
@@ -67,9 +71,25 @@ function [t_aug, X_aug, dXdt_aug, augmentation_stats] = augment_data_with_gp_sam
         end
     end
     
-    % Compute GP analytical derivatives for augmented data
-    % We'll compute derivatives for each GP sample
-    dXdt_gp_samples = zeros(n_dense, num_vars, num_gp_samples);
+    % Compute GP analytical derivatives for ALL points (sparse + dense)
+    % Following Hsin et al. (2025): use GP analytical derivatives for all augmented data points
+    % This provides consistent, denoised derivatives throughout
+    
+    % First, determine all time points where we need derivatives
+    switch lower(options.combine_method)
+        case 'append'
+            t_all = [t_sparse; t_dense];
+        case 'replace'
+            t_all = t_dense;
+        otherwise
+            t_all = [t_sparse; t_dense];
+    end
+    
+    n_all = length(t_all);
+    
+    % Compute GP analytical derivatives at all time points
+    % Note: Derivatives are computed from the GP model, so they're the same for all samples
+    dXdt_gp_all = zeros(n_all, num_vars);
     
     for i = 1:num_vars
         gp_model = gp_models{i};
@@ -85,15 +105,37 @@ function [t_aug, X_aug, dXdt_aug, augmentation_stats] = augment_data_with_gp_sam
             sigma_f = 1.0;
         end
         
-        for s = 1:num_gp_samples
-            % For derivatives, we use the GP mean derivative (same for all samples)
-            % This is because derivatives are computed analytically from the GP model
-            for j = 1:n_dense
-                t_star = t_dense(j);
-                dist = t_star - X_train;
-                k_star = sigma_f^2 * exp(-0.5 * (dist.^2) / (L^2));
-                dk_dt = -(dist / (L^2)) .* k_star;
-                dXdt_gp_samples(j, i, s) = dk_dt' * alpha;
+        % Compute GP analytical derivative at all time points
+        for j = 1:n_all
+            t_star = t_all(j);
+            dist = t_star - X_train;
+            k_star = sigma_f^2 * exp(-0.5 * (dist.^2) / (L^2));
+            dk_dt = -(dist / (L^2)) .* k_star;
+            dXdt_gp_all(j, i) = dk_dt' * alpha;
+        end
+    end
+    
+    % Sample from GP posterior for dense grid only (for state values)
+    X_gp_samples = zeros(n_dense, num_vars, num_gp_samples);
+    
+    for i = 1:num_vars
+        gp_model = gp_models{i};
+        
+        % Sample from GP posterior
+        try
+            if exist('sample_gp_posterior', 'file')
+                samples = sample_gp_posterior(gp_model, t_dense, num_gp_samples);
+                X_gp_samples(:, i, :) = reshape(samples, [n_dense, 1, num_gp_samples]);
+            else
+                [mu, sigma] = predict(gp_model, t_dense);
+                for s = 1:num_gp_samples
+                    X_gp_samples(:, i, s) = mu + sigma .* randn(n_dense, 1);
+                end
+            end
+        catch
+            [mu, sigma] = predict(gp_model, t_dense);
+            for s = 1:num_gp_samples
+                X_gp_samples(:, i, s) = mu + sigma .* randn(n_dense, 1);
             end
         end
     end
@@ -105,31 +147,33 @@ function [t_aug, X_aug, dXdt_aug, augmentation_stats] = augment_data_with_gp_sam
             % Use first GP sample (or average if multiple)
             if num_gp_samples == 1
                 X_gp_combined = X_gp_samples(:, :, 1);
-                dXdt_gp_combined = dXdt_gp_samples(:, :, 1);
             else
                 % Average multiple samples
                 X_gp_combined = mean(X_gp_samples, 3);
-                dXdt_gp_combined = mean(dXdt_gp_samples, 3);
             end
             
             % Combine: original sparse + GP samples
             t_aug = [t_sparse; t_dense];
             X_aug = [X_sparse; X_gp_combined];
             
-            % For derivatives: use finite differences on sparse, GP analytical on dense
-            dXdt_sparse_fd = compute_finite_differences(t_sparse, X_sparse, 'central');
-            dXdt_aug = [dXdt_sparse_fd; dXdt_gp_combined];
+            % Use GP analytical derivatives for ALL points (sparse + dense)
+            % Split the pre-computed derivatives: first n_sparse for sparse, rest for dense
+            dXdt_sparse_gp = dXdt_gp_all(1:n_sparse, :);
+            dXdt_dense_gp = dXdt_gp_all(n_sparse+1:end, :);
+            dXdt_aug = [dXdt_sparse_gp; dXdt_dense_gp];
             
         case 'replace'
             % Replace sparse data entirely with GP samples
             t_aug = t_dense;
             if num_gp_samples == 1
                 X_aug = X_gp_samples(:, :, 1);
-                dXdt_aug = dXdt_gp_samples(:, :, 1);
             else
                 X_aug = mean(X_gp_samples, 3);
-                dXdt_aug = mean(dXdt_gp_samples, 3);
             end
+            
+            % Use GP analytical derivatives for all dense points
+            % Since t_all = t_dense in this case, dXdt_gp_all contains derivatives for all points
+            dXdt_aug = dXdt_gp_all;
             
         otherwise
             error('Unknown combine_method: %s. Use ''append'' or ''replace''', options.combine_method);
