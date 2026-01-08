@@ -70,22 +70,32 @@ fprintf('  Library order: %d\n', polyOrder);
 fprintf('  Number of terms: %d\n', length(library_names));
 fprintf('  Data points: %d\n', size(Theta_aug, 1));
 
-%% Step 3: Run SINDy on Augmented Dataset
-fprintf('\nStep 3: Running SINDy on augmented dataset...\n');
+%% Step 3: Run SINDy on Augmented Dataset (ADMM for LASSO)
+fprintf('\nStep 3: Running SINDy on augmented dataset (ADMM for LASSO)...\n');
 
 % Set sparsity threshold (data-adaptive)
 lambda_base = 0.01;
 lambda = lambda_base * std(dXdt_aug(:));
-max_iterations = 10;
 
-fprintf('  Sparsity threshold: λ = %.6f (%.4f * std(dXdt))\n', lambda, lambda_base);
-fprintf('  Max iterations: %d\n', max_iterations);
+% ADMM options (matching Hsin et al. 2025 approach)
+admm_options = struct();
+admm_options.rho = 1.0;  % ADMM penalty parameter
+admm_options.max_iterations = 1000;
+admm_options.abs_tol = 1e-4;
+admm_options.rel_tol = 1e-2;
+admm_options.verbose = false;
+
+fprintf('  Sparsity parameter: λ = %.6f (%.4f * std(dXdt))\n', lambda, lambda_base);
+fprintf('  ADMM penalty: ρ = %.2f\n', admm_options.rho);
+fprintf('  Max iterations: %d\n', admm_options.max_iterations);
 
 tic;
-[Xi_aug, sindy_stats_aug] = run_sindy_stls(Theta_aug, dXdt_aug, lambda, max_iterations);
+[Xi_aug, sindy_stats_aug] = run_sindy_admm(Theta_aug, dXdt_aug, lambda, admm_options);
 sindy_time_aug = toc;
 
-fprintf('  SINDy completed in %.4f seconds\n', sindy_time_aug);
+fprintf('  SINDy (ADMM) completed in %.4f seconds\n', sindy_time_aug);
+fprintf('  Converged: %s (iterations: %d)\n', ...
+    mat2str(sindy_stats_aug.converged), sindy_stats_aug.iterations);
 fprintf('  Final sparsity: %.1f%% (%.0f/%d nonzero terms)\n', ...
     sindy_stats_aug.final_sparsity * 100, sindy_stats_aug.num_nonzero, sindy_stats_aug.num_terms);
 fprintf('  Prediction RMSE: %.4f\n', sindy_stats_aug.rmse);

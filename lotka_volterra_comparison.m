@@ -138,16 +138,22 @@ for i = 1:N
     
     lambda = 0.01;
     
-    % STLS (Sequential Thresholded Least Squares)
-    epsguess = Thetait \ X2it;
+    % ADMM for LASSO (matching Hsin et al. 2025 approach)
+    admm_options = struct();
+    admm_options.rho = 1.0;
+    admm_options.max_iterations = 1000;
+    admm_options.abs_tol = 1e-4;
+    admm_options.rel_tol = 1e-2;
+    admm_options.verbose = false;
     
-    for c = 1:10
-        smallinds = (abs(epsguess) < lambda);
-        epsguess(smallinds) = 0;
-        biginds1 = ~smallinds(:,1);
-        biginds2 = ~smallinds(:,2);
-        epsguess(biginds1,1) = Thetait(:,biginds1) \ X2it(:,1);
-        epsguess(biginds2,2) = Thetait(:,biginds2) \ X2it(:,2);
+    % Use ADMM from Van der Pol directory (or create local copy)
+    if exist('run_sindy_admm', 'file')
+        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
+    else
+        % Fallback: try to use from Van_der_Pol directory
+        addpath('Van_der_Pol');
+        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
+        rmpath('Van_der_Pol');
     end
     
     % Store coefficients (map back to full 6-function library)
@@ -430,15 +436,22 @@ for i = 1:N
     
     lambda = 0.01;
     
-    epsguess = Thetait \ X2it;
+    % ADMM for LASSO (matching Hsin et al. 2025 approach)
+    admm_options = struct();
+    admm_options.rho = 1.0;
+    admm_options.max_iterations = 1000;
+    admm_options.abs_tol = 1e-4;
+    admm_options.rel_tol = 1e-2;
+    admm_options.verbose = false;
     
-    for c = 1:10
-        smallinds = (abs(epsguess) < lambda);
-        epsguess(smallinds) = 0;
-        biginds1 = ~smallinds(:,1);
-        biginds2 = ~smallinds(:,2);
-        epsguess(biginds1,1) = Thetait(:,biginds1) \ X2it(:,1);
-        epsguess(biginds2,2) = Thetait(:,biginds2) \ X2it(:,2);
+    % Use ADMM from Van der Pol directory (or create local copy)
+    if exist('run_sindy_admm', 'file')
+        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
+    else
+        % Fallback: try to use from Van_der_Pol directory
+        addpath('Van_der_Pol');
+        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
+        rmpath('Van_der_Pol');
     end
     
     epsguessstored_path2(stored_idx, :, i) = NaN;

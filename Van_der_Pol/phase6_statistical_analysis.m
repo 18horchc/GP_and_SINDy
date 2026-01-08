@@ -82,9 +82,16 @@ for trial = 1:num_trials
         
         lambda_base = 0.01;
         lambda = lambda_base * std(dXdt_fd(:));
-        max_iterations = 10;
         
-        [Xi, sindy_stats] = run_sindy_stls(Theta, dXdt_fd, lambda, max_iterations);
+        % ADMM options (matching Hsin et al. 2025 approach)
+        admm_options = struct();
+        admm_options.rho = 1.0;
+        admm_options.max_iterations = 1000;
+        admm_options.abs_tol = 1e-4;
+        admm_options.rel_tol = 1e-2;
+        admm_options.verbose = false;
+        
+        [Xi, sindy_stats] = run_sindy_admm(Theta, dXdt_fd, lambda, admm_options);
         
         t_span_sim = [min(t_true), max(t_true)];
         [t_sim, X_sim] = forward_integrate_sindy(Xi, library_names, t_span_sim, x0);
@@ -101,7 +108,7 @@ for trial = 1:num_trials
         [Theta_aug, ~] = build_library_vdp(X_aug, polyOrder);
         lambda_aug = lambda_base * std(dXdt_aug(:));
         
-        [Xi_aug, sindy_stats_aug] = run_sindy_stls(Theta_aug, dXdt_aug, lambda_aug, max_iterations);
+        [Xi_aug, sindy_stats_aug] = run_sindy_admm(Theta_aug, dXdt_aug, lambda_aug, admm_options);
         
         [t_sim_aug, X_sim_aug] = forward_integrate_sindy(Xi_aug, library_names, t_span_sim, x0);
         X_sim_aug_interp = interp1(t_sim_aug, X_sim_aug, t_true, 'pchip');
