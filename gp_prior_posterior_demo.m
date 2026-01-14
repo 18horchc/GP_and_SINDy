@@ -11,7 +11,7 @@ clear; close all; clc;
 x_min = -5;
 x_max = 5;
 n_grid = 200;  % Number of points on regular grid
-n_samples = 3;  % Number of random function draws
+n_samples = 4;  % Number of random function draws
 n_train = 5;    % Number of training data points
 
 %% Create regular grid of scalar inputs
@@ -22,6 +22,11 @@ x_grid = linspace(x_min, x_max, n_grid)';
 % This is the RBF/Squared Exponential kernel with length scale = 1
 % Vectorized version for efficiency
 compute_kernel = @(X1, X2) exp(-0.5 * (X1 - X2').^2);
+
+%to change length scale it will be (X1-X2')/l where l is the length scale
+
+%additionally, the overall vaiance (magnitude) could be changed by 
+%multiplying by a positive pre-factor before the exp
 
 %% ============================================
 %% PART (a): PRIOR
@@ -58,10 +63,15 @@ mu_lower_prior = mu_prior - 2 * std_prior;
 fprintf('Generating GP posterior samples...\n');
 
 % Invent some training data points
+%these must be column vectors
 % Based on the image, approximate locations:
 % (-4, -2), (-2.5, 0.5), (-1, 1.5), (0, 1.8), (2.5, 0)
-x_train = [-4; -2.5; -1; 0; 2.5];
-y_train = [-2; 0.5; 1.5; 1.8; 0];
+%x_train = [-4; -2.5; -1; 0; 2.5];
+%y_train = [-2; 0.5; 1.5; 1.8; 0];
+
+%new data: 
+x_train = [-3.5;-2;0;1.53;2.1];
+y_train = [-2; 0; 1.1; 1.8; -0.2];
 
 % For noise-free observations, we assume zero observation noise
 % (as mentioned in the image: "five noise free observations")
@@ -120,7 +130,7 @@ fill([x_grid; flipud(x_grid)], [mu_upper_prior; flipud(mu_lower_prior)], ...
     [0.85, 0.85, 0.85], 'EdgeColor', 'none', 'FaceAlpha', 0.7);
 
 % Draw sample functions
-colors = {[0, 0.4470, 0.7410], [0.8500, 0.3250, 0.0980], [0.9290, 0.6940, 0.1250]};
+colors = {[0, 0.4470, 0.7410], [0.8500, 0.3250, 0.0980], [0.9290, 0.6940, 0.1250], [0.5 0.2 0.8]};
 for i = 1:n_samples
     plot(x_grid, samples_prior(:, i), '-', 'Color', colors{i}, ...
         'LineWidth', 1.5, 'DisplayName', sprintf('Sample %d', i));
