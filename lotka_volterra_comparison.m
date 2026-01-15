@@ -1,8 +1,8 @@
-% Comparison of ESINDy on sparse noisy data (Path 1) vs GP-enhanced ESINDy (Path 2)
+% Comparison of SINDy on sparse noisy data (Path 1) vs GP-enhanced SINDy (Path 2)
 % For Lotka-Volterra equations
 %
-% Path 1: Direct ESINDy on 10 noisy sparse points (averaged from 30 measurements)
-% Path 2: Fit GP to 30 points -> sample more data -> use GP derivative -> ESINDy with expanded library
+% Path 1: Direct SINDy on 10 noisy sparse points (averaged from 30 measurements)
+% Path 2: Fit GP to 30 points -> sample more data -> use GP derivative -> SINDy with expanded library
 
 clear; close all; clc
 
@@ -98,7 +98,7 @@ ydata_path1 = ydata_path1';
 fprintf('Path 1 uses averaged data: %d points (averages at %d unique random time points)\n', ...
         length(xdata_path1), length(t_sparse_unique));
 
-% ESINDy uses continuous-time formulation: dX/dt = f(X)
+% SINDy uses continuous-time formulation: dX/dt = f(X)
 % Compute derivatives using finite differences
 % Sort data by time to ensure proper derivative computation
 [t_sorted, sort_idx] = sort(t_sparse_unique);
@@ -146,7 +146,7 @@ fprintf('Computed derivatives using finite differences (central/forward/backward
 % Standard SINDy: Sequential Thresholded Least Squares (STLS)
 % 1) Initial least-squares fit: Xi = Theta \ X_dot
 % 2) Threshold small coefficients and refit on remaining terms
-lambda_base = 0.05;
+lambda_base = 0.1;
 lambda = lambda_base * std(X_dot_path1(:));  % Threshold scaled by data magnitude
 max_iter = 10;
 epsguess_path1 = sindy_stls(Theta_path1, X_dot_path1, lambda, max_iter);
@@ -155,8 +155,8 @@ fprintf('Path 1 Model Coefficients (SINDy-STLS):\n');
 fprintf('  X: [%s]\n', num2str(epsguess_path1(:,1)'));
 fprintf('  Y: [%s]\n', num2str(epsguess_path1(:,2)'));
 
-%% ========== PATH 2: GP-enhanced ESINDy ==========
-fprintf('\n========== PATH 2: GP-enhanced ESINDy ==========\n');
+%% ========== PATH 2: GP-enhanced SINDy ==========
+fprintf('\n========== PATH 2: GP-enhanced SINDy ==========\n');
 
 % Fit GP to sparse noisy data
 X_gp = t_sparse(:);
@@ -183,11 +183,10 @@ y2_gp = y_sparse_noisy(:);
 % makes parameter extraction for derivatives more complex. Starting with
 % Rational Quadratic as it's built-in and more flexible than Matern32.
 
-% Using Squared Exponential kernel (as in Wang & Barber 2014)
-% This kernel is well-suited for smooth functions and has stable analytical derivatives
-% The paper uses GP gradient matching for ODE parameter estimation, similar to our approach
-% Note: The paper uses constant basis functions for simplicity
-fprintf('Fitting GP models with Squared Exponential kernel (Wang & Barber approach)...\n');
+% Using Squared Exponential kernel
+% Note: Smooth kernel with well-defined analytical derivatives
+% The paper uses constant basis functions for simplicity
+fprintf('Fitting GP models with Squared Exponential kernel...\n');
 gprMdl_x = fitrgp(X_gp, y1_gp, ...
     'KernelFunction', 'squaredexponential', ...
     'BasisFunction', 'constant', ...  % Constant basis (as in Wang & Barber)
@@ -212,8 +211,9 @@ if r2_x < 0.5 || r2_y < 0.5
     warning('GP fit quality is poor (R² < 0.5). Consider adjusting hyperparameters or kernel.');
 end
 
-% Generate more time points for sampling
-t_dense = linspace(0, 10, 50);  % 50 points instead of 6
+% Generate dense time points for posterior sampling
+num_aug_points = 1000;
+t_dense = linspace(0, 10, num_aug_points);
 X_dense = t_dense(:);
 
 % Predict from GP (directly, no transform needed)
@@ -229,10 +229,9 @@ fprintf('  Y mean: range=[%.4f, %.4f], std=%.4f\n', min(y2pred), max(y2pred), st
 y1pred = max(0.01, y1pred);
 y2pred = max(0.01, y2pred);
 
-% Sample ONE GP curve from the posterior distribution per run
-% This gives us a full curve that respects the GP covariance structure
-% Each run will sample a different curve, providing variability
-num_gp_samples = 1;  % One curve per run (as requested)
+% Sample ONE GP curve from the posterior distribution
+% This yields 1000 points along a sampled trajectory
+num_gp_samples = 1;
 y1_gp_samples = sample_gp_posterior(gprMdl_x, X_dense, num_gp_samples);
 y2_gp_samples = sample_gp_posterior(gprMdl_y, X_dense, num_gp_samples);
 
@@ -244,54 +243,32 @@ y2_sampled = y2_gp_samples(:, 1);
 y1_sampled = max(0.01, y1_sampled);
 y2_sampled = max(0.01, y2_sampled);
 
-% Combine GP mean AND samples for data usage in Path 2
-% Strategy: Use GP mean at some points, GP samples at others
-% This gives us both the smooth mean estimate and the variability from sampling
-t_combined = t_dense;  % Use dense time grid
+% Use the sampled curve as the augmented dataset
+t_combined = t_dense;
+x_combined = y1_sampled;
+y_combined = y2_sampled;
 
-% Interleave GP mean and samples: use mean at even indices, samples at odd indices
-% This gives us a mix of both
-x_combined = zeros(size(t_dense));
-y_combined = zeros(size(t_dense));
-for i = 1:length(t_dense)
-    if mod(i, 2) == 0
-        % Even indices: use GP mean
-        x_combined(i) = y1pred(i);
-        y_combined(i) = y2pred(i);
-    else
-        % Odd indices: use GP sample
-        x_combined(i) = y1_sampled(i);
-        y_combined(i) = y2_sampled(i);
-    end
-end
+% Weight points closer to the GP mean higher
+eps_std = 1e-6;
+z_x = (x_combined - y1pred) ./ (y1pred_std + eps_std);
+z_y = (y_combined - y2pred) ./ (y2pred_std + eps_std);
+weights = exp(-0.5 * (z_x.^2 + z_y.^2));
+weights = weights / mean(weights);  % Normalize for numerical stability
 
-% Replace with original noisy data at original time points (use mean of replicates)
-% This ensures we keep the actual observed data
-t_sparse_unique = unique(t_sparse);
-for i = 1:length(t_sparse_unique)
-    t_i = t_sparse_unique(i);
-    [~, closest_idx] = min(abs(t_combined - t_i));
-    
-    % Find all points at this time and use their mean
-    idx_at_time = abs(t_sparse - t_i) < 1e-6;
-    x_combined(closest_idx) = mean(x_sparse_noisy(idx_at_time));
-    y_combined(closest_idx) = mean(y_sparse_noisy(idx_at_time));
-end
-
-fprintf('Combined dataset: %d points (%d original + %d GP-sampled)\n', ...
-        length(t_combined), length(t_sparse_unique), length(t_combined) - length(t_sparse_unique));
+fprintf('Augmented dataset: %d GP posterior sample points\n', length(t_combined));
+fprintf('  Weight stats: min=%.4f, max=%.4f, mean=%.4f\n', min(weights), max(weights), mean(weights));
 
 % Compute GP derivative analytically for ALL points
 % Following Hsin et al. (2025): use GP analytical derivatives for all augmented data points
 % The derivative of a GP is itself a GP! We can compute it by differentiating
 % the covariance kernel directly, which is more principled than finite differences.
 %
-% Mathematical foundation:
-% For a squared exponential kernel k(x, x') = σ² exp(-(x-x')²/(2l²)):
+% Mathematical foundation (example for squared exponential kernel):
 % - The derivative GP has covariance: k'(x, x') = σ²/l² * (1 - (x-x')²/l²) * exp(-(x-x')²/(2l²))
 % - The mean of the derivative GP: μ' = K'(X_new, X) * K(X,X)^(-1) * y
+% Note: Squared Exponential kernel is smooth; analytical derivatives are well-defined.
 %
-% How this fits into ESINDy workflow:
+% How this fits into SINDy workflow:
 % 1. We fit GP to sparse noisy data → get smooth function estimate
 % 2. We compute analytical derivative of GP at ALL points (sparse + dense) → get smooth derivative estimate
 % 3. We use these derivatives in continuous-time SINDy: dX/dt = f(X)
@@ -384,7 +361,7 @@ end
 y1_deriv_combined = y1_deriv_gp;
 y2_deriv_combined = y2_deriv_gp;
 
-% For ESINDy with derivatives, we'll use a continuous-time approach
+% For SINDy with derivatives, we'll use a continuous-time approach
 % similar to SINDy but with the expanded library
 
 % Expanded library (since we have more data, we can include more terms)
@@ -403,67 +380,17 @@ Theta_path2 = [ones(length(t_combined), 1) ...
 
 X_dot_path2 = [y1_deriv_combined(:) y2_deriv_combined(:)];
 
-% Run ESINDy ensemble with expanded library
-num_functions_path2 = size(Theta_path2, 2);
-epsguessstored_path2 = zeros(num_functions_path2, 2, N);
-choices_path2 = [1:1:num_functions_path2];
+% Weighted SINDy (STLS) using GP posterior samples
+W = sqrt(weights(:));
+Theta_path2_w = Theta_path2 .* W;
+X_dot_path2_w = X_dot_path2 .* W;
 
-for i = 1:N
-    l = num_functions_path2 - 1;  % Use all but one function
-    total_cols = num_functions_path2;
-    p = randsample(total_cols, l);
-    p = sort(p);
-    g = ismember(choices_path2, p);
-    
-    stored_idx = find(g == 0);
-    if isempty(stored_idx)
-        stored_idx = 1;
-    else
-        stored_idx = stored_idx(1);
-    end
-    
-    Thetait = Theta_path2(:, p);
-    X2it = X_dot_path2;
-    
-    % Adaptive lambda based on data scale (matching Hsin et al. 2025 approach)
-    % Scale lambda by standard deviation of target data for better sparsity control
-    lambda_base = 0.01;
-    lambda = lambda_base * std(X2it(:));
-    
-    % ADMM for LASSO (matching Hsin et al. 2025 approach)
-    admm_options = struct();
-    admm_options.rho = 1.0;
-    admm_options.max_iterations = 1000;
-    admm_options.abs_tol = 1e-4;
-    admm_options.rel_tol = 1e-2;
-    admm_options.verbose = false;
-    
-    % Use ADMM from Van der Pol directory (or create local copy)
-    if exist('run_sindy_admm', 'file')
-        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
-    else
-        % Fallback: try to use from Van_der_Pol directory
-        addpath('Van_der_Pol');
-        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
-        rmpath('Van_der_Pol');
-    end
-    
-    epsguessstored_path2(stored_idx, :, i) = NaN;
-    if stored_idx > 1
-        epsguessstored_path2(1:stored_idx-1, :, i) = epsguess(1:stored_idx-1, :);
-    end
-    if stored_idx < num_functions_path2
-        epsguessstored_path2(stored_idx+1:end, :, i) = epsguess(stored_idx:end, :);
-    end
-end
+lambda_base = 0.05;
+lambda = lambda_base * std(X_dot_path2_w(:));
+max_iter = 10;
+epsguess_path2 = sindy_stls(Theta_path2_w, X_dot_path2_w, lambda, max_iter);
 
-epsguessstored_path2(isnan(epsguessstored_path2)) = 0;
-
-% Use median of ensemble instead of first member for better robustness
-% This helps avoid outliers and provides more stable predictions
-epsguess_path2 = median(epsguessstored_path2, 3);
-
-fprintf('Path 2 Model Coefficients (expanded library with %d functions):\n', num_functions_path2);
+fprintf('Path 2 Model Coefficients (weighted SINDy, %d functions):\n', size(Theta_path2, 2));
 fprintf('  X: [%s]\n', num2str(epsguess_path2(:,1)'));
 fprintf('  Y: [%s]\n', num2str(epsguess_path2(:,2)'));
 
@@ -706,7 +633,7 @@ catch ME
     sol_path2 = [x0_path2, y0_path2; x0_path2, y0_path2];
 end
 
-% Path 1: ESINDy predictions
+% Path 1: SINDy predictions
 subplot(2,2,1);
 % Plot true curve first to establish axis limits
 plot(t_true, x_true, 'k-', 'LineWidth', 2.5, 'DisplayName', 'True');
@@ -715,10 +642,10 @@ hold on;
 scatter(t_sparse_unique, xdata_path1, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
     'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
 % Finally plot prediction
-plot(t_sim_path1, x_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1: ESINDy');
+plot(t_sim_path1, x_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1: SINDy');
 xlabel('Time');
 ylabel('X (Prey)');
-title('Path 1: ESINDy Prediction');
+title('Path 1: SINDy Prediction');
 legend('Location', 'best');
 grid on;
 % Ensure axis includes all data
@@ -732,16 +659,16 @@ hold on;
 scatter(t_sparse_unique, ydata_path1, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
     'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
 % Finally plot prediction
-plot(t_sim_path1, y_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1: ESINDy');
+plot(t_sim_path1, y_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1: SINDy');
 xlabel('Time');
 ylabel('Y (Predator)');
-title('Path 1: ESINDy Prediction');
+title('Path 1: SINDy Prediction');
 legend('Location', 'best');
 grid on;
 % Ensure axis includes all data
 axis tight;
 
-% Path 2: GP-enhanced ESINDy predictions
+% Path 2: GP-enhanced SINDy predictions
 subplot(2,2,3);
 % Plot true curve first to establish axis limits
 plot(t_true, x_true, 'k-', 'LineWidth', 2.5, 'DisplayName', 'True');
@@ -750,10 +677,10 @@ hold on;
 scatter(t_sparse_unique, xdata_path2_avg, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
     'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
 % Finally plot prediction
-plot(t_ode_path2, sol_path2(:,1), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2: GP+ESINDy');
+plot(t_ode_path2, sol_path2(:,1), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2: GP+SINDy');
 xlabel('Time');
 ylabel('X (Prey)');
-title('Path 2: GP-enhanced ESINDy Prediction');
+title('Path 2: GP-enhanced SINDy Prediction');
 legend('Location', 'best');
 grid on;
 % Ensure axis includes all data
@@ -767,10 +694,10 @@ hold on;
 scatter(t_sparse_unique, ydata_path2_avg, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
     'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
 % Finally plot prediction
-plot(t_ode_path2, sol_path2(:,2), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2: GP+ESINDy');
+plot(t_ode_path2, sol_path2(:,2), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2: GP+SINDy');
 xlabel('Time');
 ylabel('Y (Predator)');
-title('Path 2: GP-enhanced ESINDy Prediction');
+title('Path 2: GP-enhanced SINDy Prediction');
 legend('Location', 'best');
 grid on;
 % Ensure axis includes all data
@@ -810,12 +737,12 @@ end
 rmse_path2_x = sqrt(mean((sol_path2(:,1) - x_true_path2).^2));
 rmse_path2_y = sqrt(mean((sol_path2(:,2) - y_true_path2).^2));
 
-fprintf('Path 1 (Direct ESINDy) RMSE:\n');
+fprintf('Path 1 (Direct SINDy) RMSE:\n');
 fprintf('  X (Prey): %.4f\n', rmse_path1_x);
 fprintf('  Y (Predator): %.4f\n', rmse_path1_y);
 fprintf('  Average: %.4f\n', (rmse_path1_x + rmse_path1_y)/2);
 
-fprintf('\nPath 2 (GP-enhanced ESINDy) RMSE:\n');
+fprintf('\nPath 2 (GP-enhanced SINDy) RMSE:\n');
 fprintf('  X (Prey): %.4f\n', rmse_path2_x);
 fprintf('  Y (Predator): %.4f\n', rmse_path2_y);
 fprintf('  Average: %.4f\n', (rmse_path2_x + rmse_path2_y)/2);
