@@ -1,8 +1,8 @@
 % Comparison of ESINDy on sparse noisy data (Path 1) vs GP-enhanced ESINDy (Path 2)
 % For Lotka-Volterra equations
 %
-% Path 1: Direct ESINDy on 6 noisy sparse points
-% Path 2: Fit GP to 6 points -> sample more data -> use GP derivative -> ESINDy with expanded library
+% Path 1: Direct ESINDy on 10 noisy sparse points (averaged from 30 measurements)
+% Path 2: Fit GP to 30 points -> sample more data -> use GP derivative -> ESINDy with expanded library
 
 clear; close all; clc
 
@@ -33,17 +33,18 @@ t_true = linspace(0, 10, 1000);
 x_true = interp1(t_sol, sol(:,1), t_true);
 y_true = interp1(t_sol, sol(:,2), t_true);
 
-% Select 6 sparse time points
-t_sparse_unique = linspace(0, 10, 6);  % 6 evenly spaced time points
+% Select 10 random time points
+num_unique_points = 10;
+t_sparse_unique = sort(rand(1, num_unique_points) * 10);  % 10 random time points in [0, 10]
 x_sparse_true_unique = interp1(t_sol, sol(:,1), t_sparse_unique);
 y_sparse_true_unique = interp1(t_sol, sol(:,2), t_sparse_unique);
 
 % Generate 3 independent noisy measurements at each time point
-% This gives us 18 total data points (3 at each of 6 time points)
+% This gives us 30 total data points (3 at each of 10 time points)
 num_replicates = 3;  % Number of measurements per time point
 noise_level = 0.1;  % 10% noise
 
-% Initialize arrays for all 18 points
+% Initialize arrays for all 30 points
 t_sparse = repmat(t_sparse_unique, num_replicates, 1);
 t_sparse = t_sparse(:);  % Flatten to column vector
 x_sparse_noisy = zeros(size(t_sparse));
@@ -56,10 +57,11 @@ for i = 1:length(t_sparse_unique)
     y_true_i = y_sparse_true_unique(i);
     
     % Generate 3 independent noisy measurements
+    % 10% noise means noise std = 10% of signal value at each point
     for j = 1:num_replicates
         idx = (i-1)*num_replicates + j;
-        noise_x = normrnd(0, noise_level * std(x_sparse_true_unique));
-        noise_y = normrnd(0, noise_level * std(y_sparse_true_unique));
+        noise_x = normrnd(0, noise_level * abs(x_true_i));
+        noise_y = normrnd(0, noise_level * abs(y_true_i));
         
         x_sparse_noisy(idx) = x_true_i + noise_x;
         y_sparse_noisy(idx) = y_true_i + noise_y;
@@ -71,16 +73,16 @@ x_sparse_noisy = max(0.01, x_sparse_noisy);
 y_sparse_noisy = max(0.01, y_sparse_noisy);
 
 fprintf('Generated %d sparse noisy points from Lotka-Volterra\n', length(t_sparse));
-fprintf('  - %d unique time points: [%s]\n', length(t_sparse_unique), num2str(t_sparse_unique));
+fprintf('  - %d unique random time points\n', length(t_sparse_unique));
 fprintf('  - %d replicates per time point\n', num_replicates);
 fprintf('  - Total: %d data points\n', length(t_sparse));
 
-%% ========== PATH 1: Direct ESINDy on averaged data ==========
-fprintf('\n========== PATH 1: Direct ESINDy ==========\n');
+%% ========== PATH 1: Direct SINDy on averaged data ==========
+fprintf('\n========== PATH 1: Direct SINDy ==========\n');
 
 % For Path 1, we use AVERAGED data at each unique time point
-% This gives us 6 points (one average per time point) instead of 18 raw points
-% Average replicates at each unique time point to get 6 sequential points
+% This gives us 10 points (one average per time point) instead of 30 raw points
+% Average replicates at each unique time point to get 10 sequential points
 xdata_path1 = zeros(size(t_sparse_unique));
 ydata_path1 = zeros(size(t_sparse_unique));
 
@@ -93,86 +95,63 @@ end
 xdata_path1 = xdata_path1';
 ydata_path1 = ydata_path1';
 
-fprintf('Path 1 uses averaged data: %d points (averages at %d unique time points)\n', ...
+fprintf('Path 1 uses averaged data: %d points (averages at %d unique random time points)\n', ...
         length(xdata_path1), length(t_sparse_unique));
 
-% ESINDy uses discrete-time formulation: X(t+1) = f(X(t))
-% NOTE: No derivatives are computed in Path 1!
-% Instead, we directly use the next state X(t+1) as the target
-% Since we only have 6 points, we have 5 transitions
-%
-% Theta_path1: Library functions evaluated at X(t) [current state]
-% X2_path1:    X(t+1) [next state] - this is what we're trying to predict
-Theta_path1 = [ones(length(xdata_path1)-1, 1) ...
-               xdata_path1(1:end-1) ...
-               ydata_path1(1:end-1) ...
-               xdata_path1(1:end-1).^2 ...
-               ydata_path1(1:end-1).^2 ...
-               xdata_path1(1:end-1).*ydata_path1(1:end-1)];
+% ESINDy uses continuous-time formulation: dX/dt = f(X)
+% Compute derivatives using finite differences
+% Sort data by time to ensure proper derivative computation
+[t_sorted, sort_idx] = sort(t_sparse_unique);
+xdata_sorted = xdata_path1(sort_idx);
+ydata_sorted = ydata_path1(sort_idx);
 
-X2_path1 = [xdata_path1(2:end) ydata_path1(2:end)];
+% Compute derivatives using finite differences
+% Use central differences for interior points, forward/backward for endpoints
+dxdt_path1 = zeros(size(xdata_sorted));
+dydt_path1 = zeros(size(ydata_sorted));
 
-% Run ESINDy ensemble
-N = 1000;  % Number of ensemble members
-epsguessstored_path1 = zeros(6, 2, N);
-choices = [1:1:6];
-
-for i = 1:N
-    l = 5;  % Use 5 out of 6 candidate functions
-    total_cols = 6;
-    p = randsample(total_cols, l);
-    p = sort(p);
-    g = ismember(choices, p);
-    
-    % Find which function was excluded
-    stored_idx = find(g == 0);
-    if isempty(stored_idx)
-        stored_idx = 1;  % Fallback
+for i = 1:length(t_sorted)
+    if i == 1
+        % Forward difference at first point
+        dt = t_sorted(2) - t_sorted(1);
+        dxdt_path1(i) = (xdata_sorted(2) - xdata_sorted(1)) / dt;
+        dydt_path1(i) = (ydata_sorted(2) - ydata_sorted(1)) / dt;
+    elseif i == length(t_sorted)
+        % Backward difference at last point
+        dt = t_sorted(end) - t_sorted(end-1);
+        dxdt_path1(i) = (xdata_sorted(end) - xdata_sorted(end-1)) / dt;
+        dydt_path1(i) = (ydata_sorted(end) - ydata_sorted(end-1)) / dt;
     else
-        stored_idx = stored_idx(1);
-    end
-    
-    % Create reduced Theta matrix
-    Thetait = Theta_path1(:, p);
-    X2it = X2_path1;
-    
-    lambda = 0.01;
-    
-    % ADMM for LASSO (matching Hsin et al. 2025 approach)
-    admm_options = struct();
-    admm_options.rho = 1.0;
-    admm_options.max_iterations = 1000;
-    admm_options.abs_tol = 1e-4;
-    admm_options.rel_tol = 1e-2;
-    admm_options.verbose = false;
-    
-    % Use ADMM from Van der Pol directory (or create local copy)
-    if exist('run_sindy_admm', 'file')
-        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
-    else
-        % Fallback: try to use from Van_der_Pol directory
-        addpath('Van_der_Pol');
-        [epsguess, ~] = run_sindy_admm(Thetait, X2it, lambda, admm_options);
-        rmpath('Van_der_Pol');
-    end
-    
-    % Store coefficients (map back to full 6-function library)
-    epsguessstored_path1(stored_idx, :, i) = NaN;
-    if stored_idx > 1
-        epsguessstored_path1(1:stored_idx-1, :, i) = epsguess(1:stored_idx-1, :);
-    end
-    if stored_idx < 6
-        epsguessstored_path1(stored_idx+1:end, :, i) = epsguess(stored_idx:end, :);
+        % Central difference for interior points (more accurate)
+        dt = t_sorted(i+1) - t_sorted(i-1);
+        dxdt_path1(i) = (xdata_sorted(i+1) - xdata_sorted(i-1)) / dt;
+        dydt_path1(i) = (ydata_sorted(i+1) - ydata_sorted(i-1)) / dt;
     end
 end
 
-% Find most common model
-epsguessstored_path1(isnan(epsguessstored_path1)) = 0;
+% Library functions evaluated at all points
+% Theta_path1: Library functions evaluated at X(t) [current state]
+% X_dot_path1: dX/dt [derivative] - this is what we're trying to predict
+Theta_path1 = [ones(length(xdata_sorted), 1) ...
+               xdata_sorted(:) ...
+               ydata_sorted(:) ...
+               xdata_sorted(:).^2 ...
+               ydata_sorted(:).^2 ...
+               xdata_sorted(:).*ydata_sorted(:)];
 
-% Get the first model as representative (user can modify this)
-epsguess_path1 = epsguessstored_path1(:, :, 1);
+X_dot_path1 = [dxdt_path1(:) dydt_path1(:)];
 
-fprintf('Path 1 Model Coefficients:\n');
+fprintf('Computed derivatives using finite differences (central/forward/backward)\n');
+
+% Standard SINDy: Sequential Thresholded Least Squares (STLS)
+% 1) Initial least-squares fit: Xi = Theta \ X_dot
+% 2) Threshold small coefficients and refit on remaining terms
+lambda_base = 0.05;
+lambda = lambda_base * std(X_dot_path1(:));  % Threshold scaled by data magnitude
+max_iter = 10;
+epsguess_path1 = sindy_stls(Theta_path1, X_dot_path1, lambda, max_iter);
+
+fprintf('Path 1 Model Coefficients (SINDy-STLS):\n');
 fprintf('  X: [%s]\n', num2str(epsguess_path1(:,1)'));
 fprintf('  Y: [%s]\n', num2str(epsguess_path1(:,2)'));
 
@@ -324,6 +303,18 @@ fprintf('Combined dataset: %d points (%d original + %d GP-sampled)\n', ...
 [y1_deriv_gp, y1_deriv_var] = gp_derivative_analytical(gprMdl_x, X_dense);
 [y2_deriv_gp, y2_deriv_var] = gp_derivative_analytical(gprMdl_y, X_dense);
 
+% Check GP derivative quality
+fprintf('\nGP Derivative Quality Check:\n');
+if any(isnan(y1_deriv_gp)) || any(isnan(y2_deriv_gp))
+    warning('GP derivatives contain NaN values. This may cause poor model discovery.');
+end
+if any(isinf(y1_deriv_gp)) || any(isinf(y2_deriv_gp))
+    warning('GP derivatives contain Inf values. This may cause poor model discovery.');
+end
+if std(y1_deriv_gp) < 0.01 || std(y2_deriv_gp) < 0.01
+    warning('GP derivatives have very low variance. GP fit may be too smooth.');
+end
+
 % Check for stability issues and print diagnostics
 fprintf('GP derivative diagnostics:\n');
 fprintf('  X derivative: mean=%.4f, std=%.4f, min=%.4f, max=%.4f\n', ...
@@ -434,7 +425,10 @@ for i = 1:N
     Thetait = Theta_path2(:, p);
     X2it = X_dot_path2;
     
-    lambda = 0.01;
+    % Adaptive lambda based on data scale (matching Hsin et al. 2025 approach)
+    % Scale lambda by standard deviation of target data for better sparsity control
+    lambda_base = 0.01;
+    lambda = lambda_base * std(X2it(:));
     
     % ADMM for LASSO (matching Hsin et al. 2025 approach)
     admm_options = struct();
@@ -464,7 +458,10 @@ for i = 1:N
 end
 
 epsguessstored_path2(isnan(epsguessstored_path2)) = 0;
-epsguess_path2 = epsguessstored_path2(:, :, 1);
+
+% Use median of ensemble instead of first member for better robustness
+% This helps avoid outliers and provides more stable predictions
+epsguess_path2 = median(epsguessstored_path2, 3);
 
 fprintf('Path 2 Model Coefficients (expanded library with %d functions):\n', num_functions_path2);
 fprintf('  X: [%s]\n', num2str(epsguess_path2(:,1)'));
@@ -478,20 +475,20 @@ figure(1);
 subplot(2,1,1);
 plot(t_true, x_true, 'b-', 'LineWidth', 2, 'DisplayName', 'True X (prey)');
 hold on;
-scatter(t_sparse, x_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Noisy sparse data (18 points)');
+scatter(t_sparse, x_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Noisy sparse data (30 points)');
 xlabel('Time');
 ylabel('X (Prey)');
-title('Lotka-Volterra: Prey Population (18 points: 3 replicates at 6 time points)');
+title('Lotka-Volterra: Prey Population (30 points: 3 replicates at 10 random time points)');
 legend('Location', 'best');
 grid on;
 
 subplot(2,1,2);
 plot(t_true, y_true, 'b-', 'LineWidth', 2, 'DisplayName', 'True Y (predator)');
 hold on;
-scatter(t_sparse, y_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Noisy sparse data (18 points)');
+scatter(t_sparse, y_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Noisy sparse data (30 points)');
 xlabel('Time');
 ylabel('Y (Predator)');
-title('Lotka-Volterra: Predator Population (18 points: 3 replicates at 6 time points)');
+title('Lotka-Volterra: Predator Population (30 points: 3 replicates at 10 random time points)');
 legend('Location', 'best');
 grid on;
 
@@ -500,7 +497,7 @@ figure(2);
 subplot(2,1,1);
 plot(t_dense, y1pred, 'b-', 'LineWidth', 2, 'DisplayName', 'GP mean');
 hold on;
-scatter(t_sparse, x_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Original 18 points');
+scatter(t_sparse, x_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Original 30 points');
 scatter(t_dense, y1_sampled, 50, 'g', 'o', 'DisplayName', 'GP samples');
 xlabel('Time');
 ylabel('X (Prey)');
@@ -511,7 +508,7 @@ grid on;
 subplot(2,1,2);
 plot(t_dense, y2pred, 'b-', 'LineWidth', 2, 'DisplayName', 'GP mean');
 hold on;
-scatter(t_sparse, y_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Original 18 points');
+scatter(t_sparse, y_sparse_noisy, 80, 'r', 'filled', 'DisplayName', 'Original 30 points');
 scatter(t_dense, y2_sampled, 50, 'g', 'o', 'DisplayName', 'GP samples');
 xlabel('Time');
 ylabel('Y (Predator)');
@@ -522,89 +519,262 @@ grid on;
 % Plot 3: Model predictions comparison
 figure(3);
 
-% Simulate Path 1 model (discrete-time)
-% CRITICAL: Use unique time points for simulation, not all 18 points!
-% The model was trained on averaged data at 6 unique time points,
-% so we must simulate at those same 6 unique time points.
-% Using all 18 points would apply the discrete map multiple times at the same time,
-% causing numerical blowup (values like 10^166).
-t_sim_path1 = t_sparse_unique;  % Use 6 unique time points, not 18 with replicates
-x_sim_path1 = zeros(size(t_sim_path1));
-y_sim_path1 = zeros(size(t_sim_path1));
+% Compute averaged data points for Path 2 (same as Path 1 for consistency)
+xdata_path2_avg = zeros(size(t_sparse_unique));
+ydata_path2_avg = zeros(size(t_sparse_unique));
+for i = 1:length(t_sparse_unique)
+    idx_at_time = abs(t_sparse - t_sparse_unique(i)) < 1e-6;
+    xdata_path2_avg(i) = mean(x_sparse_noisy(idx_at_time));
+    ydata_path2_avg(i) = mean(y_sparse_noisy(idx_at_time));
+end
 
-% Use mean of replicates at first time point for initial condition
-idx_first = abs(t_sparse - t_sim_path1(1)) < 1e-6;
-x_sim_path1(1) = mean(x_sparse_noisy(idx_first));
-y_sim_path1(1) = mean(y_sparse_noisy(idx_first));
+% Simulate Path 1 model (continuous-time ODE)
+% The model dX/dt = f(X) was learned using finite differences
+% This is a direct continuous-time ODE, similar to Path 2
 
-% Apply discrete-time map: X(t+1) = f(X(t))
-% This advances from one unique time point to the next
-for i = 2:length(t_sim_path1)
-    x_prev = x_sim_path1(i-1);
-    y_prev = y_sim_path1(i-1);
-    x_sim_path1(i) = epsguess_path1(1,1) + epsguess_path1(2,1)*x_prev + ...
-                     epsguess_path1(3,1)*y_prev + epsguess_path1(4,1)*x_prev^2 + ...
-                     epsguess_path1(5,1)*y_prev^2 + epsguess_path1(6,1)*x_prev*y_prev;
-    y_sim_path1(i) = epsguess_path1(1,2) + epsguess_path1(2,2)*x_prev + ...
-                     epsguess_path1(3,2)*y_prev + epsguess_path1(4,2)*x_prev^2 + ...
-                     epsguess_path1(5,2)*y_prev^2 + epsguess_path1(6,2)*x_prev*y_prev;
+% Validate model before simulation
+if any(isnan(epsguess_path1(:))) || any(isinf(epsguess_path1(:)))
+    warning('Path 1: Model contains NaN or Inf coefficients. Using zero model.');
+    epsguess_path1(isnan(epsguess_path1) | isinf(epsguess_path1)) = 0;
+end
+
+% Clip extreme coefficients to prevent instability
+% Large coefficients can cause rapid divergence
+max_coeff = 50;  % Maximum reasonable coefficient magnitude
+num_clipped = sum(abs(epsguess_path1(:)) > max_coeff);
+if num_clipped > 0
+    warning('Path 1: Clipping %d coefficients with magnitude > %.1f to prevent instability.', num_clipped, max_coeff);
+    epsguess_path1(abs(epsguess_path1) > max_coeff) = sign(epsguess_path1(abs(epsguess_path1) > max_coeff)) * max_coeff;
+end
+
+% Continuous-time ODE: dX/dt = f(X)
+function_path1 = @(t, y) sindy_rhs_path1(t, y, epsguess_path1);
+
+% Use true initial conditions
+x0_path1 = x0;
+y0_path1 = y0;
+
+% Integrate with ODE solver (more stable than discrete stepping)
+try
+    % Try with standard tolerances first
+    try
+        [t_sim_path1, sol_path1] = ode45(function_path1, [0, 10], ...
+                                         [x0_path1; y0_path1], ...
+                                         odeset('RelTol', 1e-6, 'AbsTol', 1e-6, ...
+                                                'MaxStep', 0.5, 'Refine', 2));
+    catch
+        % If ode45 fails, try ode15s (stiff solver)
+        warning('Path 1: ode45 failed. Trying ode15s (stiff solver).');
+        [t_sim_path1, sol_path1] = ode15s(function_path1, [0, 10], ...
+                                          [x0_path1; y0_path1], ...
+                                          odeset('RelTol', 1e-4, 'AbsTol', 1e-4, ...
+                                                 'MaxStep', 0.5));
+    end
+    
+    x_sim_path1 = sol_path1(:, 1);
+    y_sim_path1 = sol_path1(:, 2);
+    
+    % Check for numerical issues
+    if any(isnan(sol_path1(:))) || any(isinf(sol_path1(:)))
+        warning('Path 1: ODE integration produced NaN or Inf. Model may be unstable.');
+        % Truncate to valid portion
+        valid_idx = ~(any(isnan(sol_path1), 2) | any(isinf(sol_path1), 2));
+        if sum(valid_idx) > 1
+            t_sim_path1 = t_sim_path1(valid_idx);
+            x_sim_path1 = x_sim_path1(valid_idx);
+            y_sim_path1 = y_sim_path1(valid_idx);
+        else
+            % If all invalid, create minimal output
+            t_sim_path1 = [0; 10];
+            x_sim_path1 = [x0_path1; x0_path1];
+            y_sim_path1 = [y0_path1; y0_path1];
+        end
+    end
+    
+    % Check if solution stays in reasonable bounds
+    if max(abs([x_sim_path1; y_sim_path1])) > 1e6
+        warning('Path 1: ODE solution has very large values. Truncating to reasonable portion.');
+        reasonable_idx = all(abs(sol_path1) < 1e6, 2);
+        if sum(reasonable_idx) > 1
+            t_sim_path1 = t_sim_path1(reasonable_idx);
+            x_sim_path1 = x_sim_path1(reasonable_idx);
+            y_sim_path1 = y_sim_path1(reasonable_idx);
+        end
+    end
+    
+catch ME
+    % Fix MATLAB warning syntax - use format specifier
+    warning('Path 1: ODE integration failed. Using initial condition only.');
+    fprintf('  Error details: %s\n', ME.message);
+    t_sim_path1 = [0; 10];
+    x_sim_path1 = [x0_path1; x0_path1];
+    y_sim_path1 = [y0_path1; y0_path1];
 end
 
 % Simulate Path 2 model (continuous-time ODE)
 function_path2 = @(t, y) sindy_rhs_path2(t, y, epsguess_path2);
-% Use mean of replicates at first time point for initial condition
-idx_first = abs(t_sparse - t_sparse_unique(1)) < 1e-6;
-x0_path2 = mean(x_sparse_noisy(idx_first));
-y0_path2 = mean(y_sparse_noisy(idx_first));
-[t_ode_path2, sol_path2] = ode45(function_path2, [0, 10], ...
-                                 [x0_path2; y0_path2], ...
-                                 odeset('RelTol', 1e-6));
 
+% Use true initial conditions for better comparison (or use mean of replicates)
+% Option 1: Use true initial conditions
+x0_path2 = x0;  % True initial condition
+y0_path2 = y0;  % True initial condition
+
+% Option 2: Use mean of replicates (uncomment to use)
+% idx_first = abs(t_sparse - t_sparse_unique(1)) < 1e-6;
+% x0_path2 = mean(x_sparse_noisy(idx_first));
+% y0_path2 = mean(y_sparse_noisy(idx_first));
+
+% Validate model before integration: check for NaN/Inf coefficients
+if any(isnan(epsguess_path2(:))) || any(isinf(epsguess_path2(:)))
+    warning('Path 2: Model contains NaN or Inf coefficients. Using zero model.');
+    epsguess_path2(isnan(epsguess_path2) | isinf(epsguess_path2)) = 0;
+end
+
+% Clip extreme coefficients to prevent instability
+% Large coefficients (especially in cubic terms) can cause rapid divergence
+max_coeff = 50;  % Maximum reasonable coefficient magnitude (reduced from 100 for better stability)
+num_clipped = sum(abs(epsguess_path2(:)) > max_coeff);
+if num_clipped > 0
+    warning('Path 2: Clipping %d coefficients with magnitude > %.1f to prevent instability.', num_clipped, max_coeff);
+    epsguess_path2(abs(epsguess_path2) > max_coeff) = sign(epsguess_path2(abs(epsguess_path2) > max_coeff)) * max_coeff;
+end
+
+% Additional check: if cubic terms have large coefficients, they're likely problematic
+cubic_indices = [7, 8, 9, 10];  % x^3, y^3, x^2*y, x*y^2 in expanded library
+if any(abs(epsguess_path2(cubic_indices, :)) > 10)
+    warning('Path 2: Large coefficients in cubic terms detected. These may cause instability.');
+    % Further reduce cubic term coefficients
+    for idx = cubic_indices
+        if abs(epsguess_path2(idx, 1)) > 10
+            epsguess_path2(idx, 1) = sign(epsguess_path2(idx, 1)) * min(10, abs(epsguess_path2(idx, 1)));
+        end
+        if abs(epsguess_path2(idx, 2)) > 10
+            epsguess_path2(idx, 2) = sign(epsguess_path2(idx, 2)) * min(10, abs(epsguess_path2(idx, 2)));
+        end
+    end
+end
+
+% Integrate with error handling and reasonable tolerances
+% Use looser tolerances to avoid step size issues, but still accurate enough
+try
+    % Try with standard tolerances first (ode45 for non-stiff systems)
+    try
+        [t_ode_path2, sol_path2] = ode45(function_path2, [0, 10], ...
+                                         [x0_path2; y0_path2], ...
+                                         odeset('RelTol', 1e-6, 'AbsTol', 1e-6, ...
+                                                'MaxStep', 0.5, 'Refine', 2));
+    catch
+        % If ode45 fails (e.g., step size too small), try ode15s (stiff solver)
+        warning('Path 2: ode45 failed. Trying ode15s (stiff solver).');
+        [t_ode_path2, sol_path2] = ode15s(function_path2, [0, 10], ...
+                                          [x0_path2; y0_path2], ...
+                                          odeset('RelTol', 1e-4, 'AbsTol', 1e-4, ...
+                                                 'MaxStep', 0.5));
+    end
+    
+    % Check for numerical issues
+    if any(isnan(sol_path2(:))) || any(isinf(sol_path2(:)))
+        warning('Path 2: ODE integration produced NaN or Inf. Model may be unstable.');
+        % Truncate to valid portion
+        valid_idx = ~(any(isnan(sol_path2), 2) | any(isinf(sol_path2), 2));
+        if sum(valid_idx) > 1
+            t_ode_path2 = t_ode_path2(valid_idx);
+            sol_path2 = sol_path2(valid_idx, :);
+        else
+            % If all invalid, create minimal output
+            t_ode_path2 = [0; 10];
+            sol_path2 = [x0_path2, y0_path2; x0_path2, y0_path2];
+        end
+    end
+    
+    % Check if solution stays in reasonable bounds
+    if max(abs(sol_path2(:))) > 1e6
+        warning('Path 2: ODE solution has very large values. Truncating to reasonable portion.');
+        % Truncate to reasonable portion
+        reasonable_idx = all(abs(sol_path2) < 1e6, 2);
+        if sum(reasonable_idx) > 1
+            t_ode_path2 = t_ode_path2(reasonable_idx);
+            sol_path2 = sol_path2(reasonable_idx, :);
+        end
+    end
+    
+catch ME
+    % Fix MATLAB warning syntax - use format specifier
+    warning('Path 2: ODE integration failed. Using initial condition only.');
+    fprintf('  Error details: %s\n', ME.message);
+    t_ode_path2 = [0; 10];
+    sol_path2 = [x0_path2, y0_path2; x0_path2, y0_path2];
+end
+
+% Path 1: ESINDy predictions
 subplot(2,2,1);
-plot(t_true, x_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
+% Plot true curve first to establish axis limits
+plot(t_true, x_true, 'k-', 'LineWidth', 2.5, 'DisplayName', 'True');
 hold on;
-plot(t_sim_path1, x_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1');
-% Path 1 uses averaged data, so show averaged points
-scatter(t_sparse_unique, xdata_path1, 100, 'b', 'filled', 'DisplayName', 'Averaged data (6 pts)');
+% Then plot data points
+scatter(t_sparse_unique, xdata_path1, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
+    'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
+% Finally plot prediction
+plot(t_sim_path1, x_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1: ESINDy');
 xlabel('Time');
 ylabel('X (Prey)');
-title('Path 1: ESINDy Prediction (uses averaged data)');
+title('Path 1: ESINDy Prediction');
 legend('Location', 'best');
 grid on;
+% Ensure axis includes all data
+axis tight;
 
 subplot(2,2,2);
-plot(t_true, y_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
+% Plot true curve first to establish axis limits
+plot(t_true, y_true, 'k-', 'LineWidth', 2.5, 'DisplayName', 'True');
 hold on;
-plot(t_sim_path1, y_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1');
-% Path 1 uses averaged data, so show averaged points
-scatter(t_sparse_unique, ydata_path1, 100, 'b', 'filled', 'DisplayName', 'Averaged data (6 pts)');
+% Then plot data points
+scatter(t_sparse_unique, ydata_path1, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
+    'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
+% Finally plot prediction
+plot(t_sim_path1, y_sim_path1, 'r--', 'LineWidth', 2, 'DisplayName', 'Path 1: ESINDy');
 xlabel('Time');
 ylabel('Y (Predator)');
-title('Path 1: ESINDy Prediction (uses averaged data)');
+title('Path 1: ESINDy Prediction');
 legend('Location', 'best');
 grid on;
+% Ensure axis includes all data
+axis tight;
 
+% Path 2: GP-enhanced ESINDy predictions
 subplot(2,2,3);
-plot(t_true, x_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
+% Plot true curve first to establish axis limits
+plot(t_true, x_true, 'k-', 'LineWidth', 2.5, 'DisplayName', 'True');
 hold on;
-plot(t_ode_path2, sol_path2(:,1), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2');
-scatter(t_sparse, x_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
+% Then plot data points
+scatter(t_sparse_unique, xdata_path2_avg, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
+    'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
+% Finally plot prediction
+plot(t_ode_path2, sol_path2(:,1), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2: GP+ESINDy');
 xlabel('Time');
 ylabel('X (Prey)');
 title('Path 2: GP-enhanced ESINDy Prediction');
 legend('Location', 'best');
 grid on;
+% Ensure axis includes all data
+axis tight;
 
 subplot(2,2,4);
-plot(t_true, y_true, 'k-', 'LineWidth', 2, 'DisplayName', 'True');
+% Plot true curve first to establish axis limits
+plot(t_true, y_true, 'k-', 'LineWidth', 2.5, 'DisplayName', 'True');
 hold on;
-plot(t_ode_path2, sol_path2(:,2), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2');
-scatter(t_sparse, y_sparse_noisy, 80, 'b', 'filled', 'DisplayName', 'Data (18 pts)');
+% Then plot data points
+scatter(t_sparse_unique, ydata_path2_avg, 120, 'b', 'filled', 'MarkerEdgeColor', 'k', ...
+    'LineWidth', 1.5, 'DisplayName', 'Averaged data (10 pts)');
+% Finally plot prediction
+plot(t_ode_path2, sol_path2(:,2), 'g--', 'LineWidth', 2, 'DisplayName', 'Path 2: GP+ESINDy');
 xlabel('Time');
 ylabel('Y (Predator)');
 title('Path 2: GP-enhanced ESINDy Prediction');
 legend('Location', 'best');
 grid on;
+% Ensure axis includes all data
+axis tight;
 
 %% ========== Model Comparison and Error Analysis ==========
 fprintf('\n========== Model Comparison ==========\n');
@@ -681,6 +851,22 @@ function dydt = lotka_volterra_ode(t, y, alpha, beta, gamma, delta)
             delta*x*y_val - gamma*y_val];  % dy/dt
 end
 
+function dydt = sindy_rhs_path1(t, y, epsguess)
+    % SINDy right-hand side for Path 1 (continuous-time ODE)
+    % Model: dX/dt = f(X) learned using finite differences
+    x = y(1);
+    y_val = y(2);
+    
+    % Library functions: [1, x, y, x^2, y^2, x*y]
+    library = [1; x; y_val; x^2; y_val^2; x*y_val];
+    
+    % Direct continuous-time ODE: dX/dt = f(X)
+    dxdt = epsguess(:,1)' * library;
+    dydt_val = epsguess(:,2)' * library;
+    
+    dydt = [dxdt; dydt_val];
+end
+
 function dydt = sindy_rhs_path2(t, y, epsguess)
     % SINDy right-hand side for Path 2 (expanded library)
     x = y(1);
@@ -695,3 +881,19 @@ function dydt = sindy_rhs_path2(t, y, epsguess)
     dydt = [dxdt; dydt_val];
 end
 
+function Xi = sindy_stls(Theta, dXdt, lambda, max_iter)
+    % Sequential Thresholded Least Squares (STLS) for SINDy
+    % Theta: library matrix, dXdt: derivative targets
+    % lambda: threshold, max_iter: number of thresholding iterations
+    Xi = Theta \ dXdt;  % Initial least-squares fit
+    for k = 1:max_iter
+        small = abs(Xi) < lambda;
+        Xi(small) = 0;
+        for i = 1:size(dXdt, 2)
+            big = ~small(:, i);
+            if any(big)
+                Xi(big, i) = Theta(:, big) \ dXdt(:, i);
+            end
+        end
+    end
+end
