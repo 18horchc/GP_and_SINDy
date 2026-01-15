@@ -22,14 +22,14 @@ gamma = 3.0;
 
 %% Experiment Configuration (match Figure 1 and Table 1)
 % Noise levels are percentages of signal std (e.g., 0.1 = 10% noise)
-noise_levels = [0.10, 0.20];
+noise_levels = [0.0, 0.10, 0.20];
 
 % Sample counts for training data (absolute counts, not fractions)
 sample_counts = [200, 100, 20];
 
-% Select one case for the Figure 1-style plot
-plot_case.noise_level = 0.10;
-plot_case.sample_count = 20;
+% Posterior sampling for extrapolation uncertainty bands
+posterior_samples = 200;        % Increase for smoother bands
+posterior_max_state = 20;       % Discard unstable trajectories
 
 fprintf('Lotka-Volterra System Parameters:\n');
 fprintf('  alpha=%.2f, beta=%.2f, delta=%.2f, gamma=%.2f\n', alpha, beta, delta, gamma);
@@ -86,28 +86,101 @@ fprintf('  Testing set: (%.1f, %.1f], %d points\n', T_split, T, length(t_test));
 fprintf('\n=== Running LV GP experiments ===\n');
 
 results = [];
+num_cases = numel(noise_levels) * numel(sample_counts);
+plot_results = cell(1, num_cases);
 case_counter = 0;
 
 for noise_level = noise_levels
     for sample_count = sample_counts
         case_counter = case_counter + 1;
-        do_plot = (abs(noise_level - plot_case.noise_level) < 1e-12) && ...
-                  (sample_count == plot_case.sample_count);
-        case_result = run_lv_gp_case( ...
+        [case_result, plot_result] = run_lv_gp_case( ...
             t_all, X, t_train_full, X_train_full, t_test, X_test, T_split, ...
             alpha, beta, delta, gamma, ...
-            noise_level, sample_count, do_plot, case_counter);
+            noise_level, sample_count, posterior_samples, posterior_max_state, case_counter);
         results = [results; case_result];
+        plot_results{case_counter} = plot_result;
     end
 end
 
 results_table = struct2table(results);
 disp(results_table);
 
+%% Visualization: subplots for all noise/sparsity cases
+fprintf('\nGenerating subplot grid for all cases...\n');
+num_rows = numel(noise_levels);
+num_cols = numel(sample_counts);
+
+figure('Color', 'w', 'Position', [100, 100, 1600, 900]);
+tiledlayout(num_rows, num_cols, 'TileSpacing', 'compact', 'Padding', 'compact');
+
+for i = 1:numel(plot_results)
+    pr = plot_results{i};
+    nexttile;
+    hold on;
+
+    % Ground truth
+    plot(t_all, X(:,1), '-', 'Color', [0, 0, 0], 'LineWidth', 1.5, ...
+        'DisplayName', 'Ground Truth');
+    plot(t_all, X(:,2), '-', 'Color', [0, 0, 0], 'LineWidth', 1.5, ...
+        'HandleVisibility', 'off');
+
+    % GP mean/CI on training interval only
+    fill([pr.t_train_all; flipud(pr.t_train_all)], ...
+         [pr.gp_upper_train(:,1); flipud(pr.gp_lower_train(:,1))], ...
+         [0, 0.4470, 0.7410], 'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
+         'DisplayName', 'GP 95% CI (x_1)');
+    fill([pr.t_train_all; flipud(pr.t_train_all)], ...
+         [pr.gp_upper_train(:,2); flipud(pr.gp_lower_train(:,2))], ...
+         [0.8500, 0.3250, 0.0980], 'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
+         'DisplayName', 'GP 95% CI (x_2)');
+
+    plot(pr.t_train_all, pr.gp_mean_train(:,1), '-', 'Color', [0, 0.4470, 0.7410], ...
+        'LineWidth', 1.5, 'DisplayName', 'GP Mean (x_1, train)');
+    plot(pr.t_train_all, pr.gp_mean_train(:,2), '-', 'Color', [0.8500, 0.3250, 0.0980], ...
+        'LineWidth', 1.5, 'DisplayName', 'GP Mean (x_2, train)');
+
+    % Forward simulation mean ± std (extrapolation band)
+    fill([t_all; flipud(t_all)], ...
+         [pr.pred_mean(:,1) + pr.pred_std(:,1); flipud(pr.pred_mean(:,1) - pr.pred_std(:,1))], ...
+         [0, 0.4470, 0.7410], 'FaceAlpha', 0.12, 'EdgeColor', 'none', ...
+         'DisplayName', 'Pred ±1σ (x_1)');
+    fill([t_all; flipud(t_all)], ...
+         [pr.pred_mean(:,2) + pr.pred_std(:,2); flipud(pr.pred_mean(:,2) - pr.pred_std(:,2))], ...
+         [0.8500, 0.3250, 0.0980], 'FaceAlpha', 0.12, 'EdgeColor', 'none', ...
+         'DisplayName', 'Pred ±1σ (x_2)');
+
+    plot(t_all, pr.pred_mean(:,1), '--', 'Color', [0, 0.4470, 0.7410], ...
+        'LineWidth', 1.2, 'DisplayName', 'Sim (x_1, est params)');
+    plot(t_all, pr.pred_mean(:,2), '--', 'Color', [0.8500, 0.3250, 0.0980], ...
+        'LineWidth', 1.2, 'DisplayName', 'Sim (x_2, est params)');
+
+    % Training points and split
+    scatter(pr.t_train, pr.X_train_noisy(:,1), 30, [0, 0.4470, 0.7410], ...
+        'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 0.5, ...
+        'DisplayName', 'Training Data (x_1)');
+    scatter(pr.t_train, pr.X_train_noisy(:,2), 30, [0.8500, 0.3250, 0.0980], ...
+        'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 0.5, ...
+        'DisplayName', 'Training Data (x_2)');
+
+    xline(T_split, 'r--', 'LineWidth', 1.0, 'DisplayName', 'Train/Test Split');
+
+    title(sprintf('Noise %.0f%% | N=%d', pr.noise_level*100, pr.sample_count), ...
+        'FontSize', 10, 'FontWeight', 'bold');
+    set(gca, 'FontSize', 8);
+    grid on;
+    box on;
+
+    if i == 1
+        legend('Location', 'best', 'FontSize', 7);
+    else
+        legend('off');
+    end
+end
+
 %% Local function: run one LV GP case
-function case_result = run_lv_gp_case( ...
+function [case_result, plot_result] = run_lv_gp_case( ...
     t_all, X, t_train_full, X_train_full, t_test, X_test, T_split, ...
-    alpha, beta, delta, gamma, noise_level, sample_count, do_plot, case_counter)
+    alpha, beta, delta, gamma, noise_level, sample_count, posterior_samples, posterior_max_state, case_counter)
 
 % Variable names
 var_names = {'x1 (Prey)', 'x2 (Predator)'};
@@ -220,12 +293,22 @@ for i = 1:N
     K_uu = sigma_f^2 * exp(-dT.^2 / (2*l^2));
     K_uu = K_uu + chi_u * eye(K_train);
 
+    % Add small jitter to improve conditioning
+    jitter_uu = max(1e-10, 1e-6 * trace(K_uu) / K_train);
+    K_uu = K_uu + jitter_uu * eye(K_train);
+
     K_dd = (sigma_f^2 / l^2) * (1 - dT.^2 / l^2) .* exp(-dT.^2 / (2*l^2));
     K_dd = K_dd + chi_u * eye(K_train);
+    jitter_dd = max(1e-10, 1e-6 * trace(K_dd) / K_train);
+    K_dd = K_dd + jitter_dd * eye(K_train);
 
     K_du = -(sigma_f^2 / l^2) * dT .* exp(-dT.^2 / (2*l^2));
-    K_uu_inv = inv(K_uu);
-    R_dd_inv{i} = inv(K_dd - K_du * K_uu_inv * K_du');
+
+    % Avoid explicit matrix inverse
+    K_uu_inv = K_uu \ eye(K_train);
+    Schur = K_dd - K_du * K_uu_inv * K_du';
+    Schur = (Schur + Schur') * 0.5;
+    R_dd_inv{i} = Schur \ eye(K_train);
 
     T_all_mat = repmat(t_all, 1, K_train);
     T_train_mat = repmat(T_vec', length(t_all), 1);
@@ -255,10 +338,15 @@ Theta2_train = [X1_train_smooth .* X2_train_smooth, X2_train_smooth];
 R1_train = R_dd_inv{1};
 R2_train = R_dd_inv{2};
 
-theta1_est = (Theta1_train' * R1_train * Theta1_train + lambda_reg * eye(2)) \ ...
-             (Theta1_train' * R1_train * dX1_train);
-theta2_est = (Theta2_train' * R2_train * Theta2_train + lambda_reg * eye(2)) \ ...
-             (Theta2_train' * R2_train * dX2_train);
+Theta1_mat = Theta1_train' * R1_train * Theta1_train + lambda_reg * eye(2);
+Theta2_mat = Theta2_train' * R2_train * Theta2_train + lambda_reg * eye(2);
+Theta1_mat = (Theta1_mat + Theta1_mat') * 0.5;
+Theta2_mat = (Theta2_mat + Theta2_mat') * 0.5;
+
+theta1_cov = Theta1_mat \ eye(2);
+theta2_cov = Theta2_mat \ eye(2);
+theta1_est = theta1_cov * (Theta1_train' * R1_train * dX1_train);
+theta2_est = theta2_cov * (Theta2_train' * R2_train * dX2_train);
 
 alpha_est = theta1_est(1);
 beta_est = -theta1_est(2);
@@ -290,73 +378,78 @@ case_result = struct( ...
     'rel_err_delta', rel_err_delta, ...
     'rel_err_gamma', rel_err_gamma);
 
-if do_plot
-    fprintf('  Generating Figure 1-style plot...\n');
-    figure('Color', 'w', 'Position', [100, 100, 1200, 600]);
-    hold on;
+% Posterior sampling for extrapolation uncertainty
+num_t = length(t_all);
+traj_store = zeros(num_t, 2, posterior_samples);
+valid_count = 0;
 
-    plot(t_all, X(:,1), '-', 'Color', [0, 0, 0], 'LineWidth', 2, ...
-        'DisplayName', 'Ground Truth');
-    plot(t_all, X(:,2), '-', 'Color', [0, 0, 0], 'LineWidth', 2, ...
-        'HandleVisibility', 'off');
+% Ensure covariance is positive definite for sampling
+theta1_cov = (theta1_cov + theta1_cov') * 0.5;
+theta2_cov = (theta2_cov + theta2_cov') * 0.5;
 
-    train_mask = t_all <= T_split;
-    t_train_all = t_all(train_mask);
-    X_gp_upper_train = X_gp_upper(train_mask, :);
-    X_gp_lower_train = X_gp_lower(train_mask, :);
-    X_gp_mean_train = X_gp_all(train_mask, :);
+[L1, p1] = chol(theta1_cov, 'lower');
+if p1 > 0
+    jitter1 = max(1e-10, 1e-6 * trace(theta1_cov) / 2);
+    [L1, p1] = chol(theta1_cov + jitter1 * eye(2), 'lower');
+end
 
-    fill([t_train_all; flipud(t_train_all)], ...
-         [X_gp_upper_train(:,1); flipud(X_gp_lower_train(:,1))], ...
-         [0, 0.4470, 0.7410], 'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
-         'DisplayName', 'GP 95% CI (x_1)');
-    fill([t_train_all; flipud(t_train_all)], ...
-         [X_gp_upper_train(:,2); flipud(X_gp_lower_train(:,2))], ...
-         [0.8500, 0.3250, 0.0980], 'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
-         'DisplayName', 'GP 95% CI (x_2)');
+[L2, p2] = chol(theta2_cov, 'lower');
+if p2 > 0
+    jitter2 = max(1e-10, 1e-6 * trace(theta2_cov) / 2);
+    [L2, p2] = chol(theta2_cov + jitter2 * eye(2), 'lower');
+end
 
-    plot(t_train_all, X_gp_mean_train(:,1), '-', 'Color', [0, 0.4470, 0.7410], ...
-        'LineWidth', 2, 'DisplayName', 'GP Mean (x_1, train)');
-    plot(t_train_all, X_gp_mean_train(:,2), '-', 'Color', [0.8500, 0.3250, 0.0980], ...
-        'LineWidth', 2, 'DisplayName', 'GP Mean (x_2, train)');
+if p1 > 0 || p2 > 0
+    warning('Posterior covariance not PD; using diagonal approximation for sampling.');
+    L1 = diag(sqrt(max(diag(theta1_cov), 0)));
+    L2 = diag(sqrt(max(diag(theta2_cov), 0)));
+end
 
-    scatter(t_train, X_train_noisy(:,1), 80, [0, 0.4470, 0.7410], ...
-        'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1, ...
-        'DisplayName', 'Training Data (x_1)');
-    scatter(t_train, X_train_noisy(:,2), 80, [0.8500, 0.3250, 0.0980], ...
-        'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1, ...
-        'DisplayName', 'Training Data (x_2)');
+for s = 1:posterior_samples
+    theta1_s = theta1_est + L1 * randn(2, 1);
+    theta2_s = theta2_est + L2 * randn(2, 1);
 
-    xline(T_split, 'r--', 'LineWidth', 1.5, 'DisplayName', 'Train/Test Split');
+    alpha_s = theta1_s(1);
+    beta_s = -theta1_s(2);
+    delta_s = theta2_s(1);
+    gamma_s = -theta2_s(2);
 
-    % Forward simulate using estimated parameters for full horizon
-    x0 = X(1, :)';
-    lv_ode_est = @(t, x) [alpha_est * x(1) - beta_est * x(1) * x(2); ...
-                          delta_est * x(1) * x(2) - gamma_est * x(2)];
-    [t_est, X_est] = ode45(lv_ode_est, [0, t_all(end)], x0, ...
+    lv_ode_est = @(t, x) [alpha_s * x(1) - beta_s * x(1) * x(2); ...
+                          delta_s * x(1) * x(2) - gamma_s * x(2)];
+    [t_est, X_est] = ode45(lv_ode_est, [0, t_all(end)], X(1, :)', ...
         odeset('RelTol', 1e-8, 'AbsTol', 1e-10));
     X_est = interp1(t_est, X_est, t_all, 'pchip');
 
-    plot(t_all, X_est(:,1), '--', 'Color', [0, 0.4470, 0.7410], ...
-        'LineWidth', 1.5, 'DisplayName', 'Sim (x_1, est params)');
-    plot(t_all, X_est(:,2), '--', 'Color', [0.8500, 0.3250, 0.0980], ...
-        'LineWidth', 1.5, 'DisplayName', 'Sim (x_2, est params)');
+    if any(~isfinite(X_est(:))) || max(X_est(:)) > posterior_max_state
+        continue;
+    end
 
-    xlabel('t', 'FontSize', 12);
-    ylabel('x_i(t)', 'FontSize', 12);
-    title(sprintf('Lotka-Volterra GP Learning (Noise %.1f%%, Sample %.2f%%)', ...
-        noise_level * 100, 100 * n_samples / n_train_full), 'FontSize', 14, 'FontWeight', 'bold');
-    legend('Location', 'best', 'FontSize', 9);
-    grid on;
-    box on;
-
-    param_str = sprintf(['Estimated Parameters:\n' ...
-        'α=%.3f (true: %.2f)\nβ=%.3f (true: %.2f)\n' ...
-        'δ=%.3f (true: %.2f)\nγ=%.3f (true: %.2f)'], ...
-        alpha_est, alpha, beta_est, beta, delta_est, delta, gamma_est, gamma);
-    text(0.02, 0.98, param_str, 'Units', 'normalized', ...
-        'VerticalAlignment', 'top', 'FontSize', 10, ...
-        'BackgroundColor', [1, 1, 1, 0.8], 'EdgeColor', 'k');
+    valid_count = valid_count + 1;
+    traj_store(:, :, valid_count) = X_est;
 end
+
+if valid_count == 0
+    pred_mean = X_est;
+    pred_std = zeros(num_t, 2);
+else
+    traj_store = traj_store(:, :, 1:valid_count);
+    pred_mean = mean(traj_store, 3);
+    pred_std = std(traj_store, 0, 3);
+end
+
+% GP train interval arrays for plotting
+train_mask = t_all <= T_split;
+
+plot_result = struct( ...
+    'noise_level', noise_level, ...
+    'sample_count', n_samples, ...
+    't_train', t_train, ...
+    'X_train_noisy', X_train_noisy, ...
+    't_train_all', t_all(train_mask), ...
+    'gp_mean_train', X_gp_all(train_mask, :), ...
+    'gp_lower_train', X_gp_lower(train_mask, :), ...
+    'gp_upper_train', X_gp_upper(train_mask, :), ...
+    'pred_mean', pred_mean, ...
+    'pred_std', pred_std);
 
 end
