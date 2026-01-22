@@ -128,13 +128,63 @@ hold off
 %below metrics for each gprmdl that I made above, and then put the relevant
 %information in the table. 
 
+% Store all models and their names in a cell array
+models = {
+    gprMdl_SE_M1, 'Squared Exponential';
+    gprMdl_exp_M1, 'Exponential';
+    gprMdl_M32_M1, 'Matern 3/2';
+    gprMdl_M52_M1, 'Matern 5/2';
+    gprMdl_RQ_M1, 'Rational Quadratic';
+    gprMdl_ardSE_M1, 'ARD Squared Exponential';
+    gprMdl_ardExp_M1, 'ARD Exponential';
+    gprMdl_ardM32_M1, 'ARD Matern 3/2';
+    gprMdl_ardM52_M1, 'ARD Matern 5/2';
+    gprMdl_ardRQ_M1, 'ARD Rational Quadratic'
+};
 
+% Initialize arrays to store metrics
+numModels = size(models, 1);
+kernelNames = cell(numModels, 1);
+logLikelihoods = zeros(numModels, 1);
+RMSEs = zeros(numModels, 1);
+R2s = zeros(numModels, 1);
 
-gprMdl_SE_M1.LogLikelihood
-RMSE = sqrt(mean(residuals.^2));
-SSR = sum((yPredict - mean(yActual)).^2);  % Regression sum of squares
-SST = sum((yActual - mean(yActual)).^2);   % Total sum of squares
-R2 = SSR / SST;
+% Calculate metrics for each model
+for i = 1:numModels
+    model = models{i, 1};
+    kernelNames{i} = models{i, 2};
+    
+    % Get log likelihood (property of the model)
+    logLikelihoods(i) = model.LogLikelihood;
+    
+    % Get predictions on training data
+    yPredict = resubPredict(model);
+    yActual = datapointsM1;  % Actual training data
+    
+    % Calculate residuals
+    residuals = yActual - yPredict;
+    
+    % Calculate RMSE
+    RMSEs(i) = sqrt(mean(residuals.^2));
+    
+    % Calculate R²
+    SSR = sum((yPredict - mean(yActual)).^2);  % Regression sum of squares
+    SST = sum((yActual - mean(yActual)).^2);   % Total sum of squares
+    R2s(i) = SSR / SST;
+end
+
+% Create table with results
+resultsTable = table(kernelNames, logLikelihoods, RMSEs, R2s, ...
+    'VariableNames', {'Kernel', 'LogLikelihood', 'RMSE', 'R2'});
+
+% Display the table
+disp('GPR Model Comparison Results for M1 Data:');
+disp(resultsTable);
+
+% Optionally sort by a metric (e.g., by LogLikelihood descending)
+resultsTableSorted = sortrows(resultsTable, 'LogLikelihood', 'descend');
+disp('Sorted by LogLikelihood (best to worst):');
+disp(resultsTableSorted);
 %% 
 % 
 % *With Hyperparameter optimization*
