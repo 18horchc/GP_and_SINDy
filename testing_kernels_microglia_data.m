@@ -175,83 +175,211 @@ disp(kernelBasisSummary);
 % Using kernel-specific best basis: bestBasisPerKernel{1}
 gprMdl_SE_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'BasisFunction', bestBasisPerKernel{1});
-[ypred_SE_M1,~] = predict(gprMdl_SE_M1,xp);
+[ypred_SE_M1, std_SE_M1] = predict(gprMdl_SE_M1,xp);
 
 
 %Exponential (aka Matern 1/2)
 % Using kernel-specific best basis: bestBasisPerKernel{2}
 gprMdl_exp_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'exponential', 'BasisFunction', bestBasisPerKernel{2});
-[ypred_exp_M1,~] = predict(gprMdl_exp_M1,xp);
+[ypred_exp_M1, std_exp_M1] = predict(gprMdl_exp_M1,xp);
 
 
 %Matern 3/2 [v=3/2] (hyperparams: v, l)
 % Using kernel-specific best basis: bestBasisPerKernel{3}
 gprMdl_M32_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'matern32', 'BasisFunction', bestBasisPerKernel{3});
-[ypred_M32_M1,~] = predict(gprMdl_M32_M1,xp);
+[ypred_M32_M1, std_M32_M1] = predict(gprMdl_M32_M1,xp);
 
 %Matern 5/2 [v=5/2] (hyperparams: v, l)
 % Using kernel-specific best basis: bestBasisPerKernel{4}
 gprMdl_M52_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'matern52', 'BasisFunction', bestBasisPerKernel{4});
-[ypred_M52_M1,~] = predict(gprMdl_M52_M1,xp);
+[ypred_M52_M1, std_M52_M1] = predict(gprMdl_M52_M1,xp);
 
 %Rational Quadratic (hyperparams: alpha, l)
 % Using kernel-specific best basis: bestBasisPerKernel{5}
 gprMdl_RQ_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'rationalquadratic', 'BasisFunction', bestBasisPerKernel{5});
-[ypred_RQ_M1,~] = predict(gprMdl_RQ_M1,xp);
+[ypred_RQ_M1, std_RQ_M1] = predict(gprMdl_RQ_M1,xp);
 
     %% ARD = automatic relevance determination
 %ARD squared exponential
 % Using kernel-specific best basis: bestBasisPerKernel{6}
 gprMdl_ardSE_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'ardsquaredexponential', 'BasisFunction', bestBasisPerKernel{6});
-[ypred_ardSE_M1,~] = predict(gprMdl_ardSE_M1,xp);
+[ypred_ardSE_M1, std_ardSE_M1] = predict(gprMdl_ardSE_M1,xp);
 
 %ARD exponential
 % Using kernel-specific best basis: bestBasisPerKernel{7}
 gprMdl_ardExp_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'ardexponential', 'BasisFunction', bestBasisPerKernel{7});
-[ypred_ardExp_M1,~] = predict(gprMdl_ardExp_M1,xp);
+[ypred_ardExp_M1, std_ardExp_M1] = predict(gprMdl_ardExp_M1,xp);
 
 %ARD Matern 3/2
 % Using kernel-specific best basis: bestBasisPerKernel{8}
 gprMdl_ardM32_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'ardmatern32', 'BasisFunction', bestBasisPerKernel{8});
-[ypred_ardM32_M1,~] = predict(gprMdl_ardM32_M1,xp);
+[ypred_ardM32_M1, std_ardM32_M1] = predict(gprMdl_ardM32_M1,xp);
 
 
 %ARD Matern 5/2
 % Using kernel-specific best basis: bestBasisPerKernel{9}
 gprMdl_ardM52_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'ardmatern52', 'BasisFunction', bestBasisPerKernel{9});
-[ypred_ardM52_M1,~] = predict(gprMdl_ardM52_M1,xp);
+[ypred_ardM52_M1, std_ardM52_M1] = predict(gprMdl_ardM52_M1,xp);
 
 %ARD rational quadratic
 % Using kernel-specific best basis: bestBasisPerKernel{10}
 gprMdl_ardRQ_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'ardrationalquadratic', 'BasisFunction', bestBasisPerKernel{10});
-[ypred_ardRQ_M1,std] = predict(gprMdl_ardRQ_M1,xp);
+[ypred_ardRQ_M1, std_ardRQ_M1] = predict(gprMdl_ardRQ_M1,xp);
 
 %%To explore later %%
 %non-stationary kernels
 %combinging kernels through sums or products
 % 
-% Plot
+% Plot all GP models
 
-
-%Squared exponental 
-plot(tpoints_M1,datapointsM1,'b.');
+% Squared Exponential
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp,ypred_SE_M1,'g','LineWidth',1.5);
-plot(xp, ypred_SE_M1+std, 'g--');
-plot(xp, ypred_SE_M1-std, 'g--');
+plot(xp, ypred_SE_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_SE_M1 + std_SE_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_SE_M1 - std_SE_M1, 'g--', 'LineWidth', 1);
 xlabel('time');
 ylabel('M1 data');
-legend('Data','GPR predictions (SE kernel)');
-hold off
+title('GPR with Squared Exponential Kernel');
+legend('Data', 'GPR predictions (SE kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% Exponential
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_exp_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_exp_M1 + std_exp_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_exp_M1 - std_exp_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with Exponential Kernel');
+legend('Data', 'GPR predictions (Exponential kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% Matern 3/2
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_M32_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_M32_M1 + std_M32_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_M32_M1 - std_M32_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with Matern 3/2 Kernel');
+legend('Data', 'GPR predictions (Matern 3/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% Matern 5/2
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_M52_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_M52_M1 + std_M52_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_M52_M1 - std_M52_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with Matern 5/2 Kernel');
+legend('Data', 'GPR predictions (Matern 5/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% Rational Quadratic
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_RQ_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_RQ_M1 + std_RQ_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_RQ_M1 - std_RQ_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with Rational Quadratic Kernel');
+legend('Data', 'GPR predictions (Rational Quadratic kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% ARD Squared Exponential
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_ardSE_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_ardSE_M1 + std_ardSE_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_ardSE_M1 - std_ardSE_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with ARD Squared Exponential Kernel');
+legend('Data', 'GPR predictions (ARD SE kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% ARD Exponential
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_ardExp_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_ardExp_M1 + std_ardExp_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_ardExp_M1 - std_ardExp_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with ARD Exponential Kernel');
+legend('Data', 'GPR predictions (ARD Exponential kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% ARD Matern 3/2
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_ardM32_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_ardM32_M1 + std_ardM32_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_ardM32_M1 - std_ardM32_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with ARD Matern 3/2 Kernel');
+legend('Data', 'GPR predictions (ARD Matern 3/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% ARD Matern 5/2
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_ardM52_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_ardM52_M1 + std_ardM52_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_ardM52_M1 - std_ardM52_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with ARD Matern 5/2 Kernel');
+legend('Data', 'GPR predictions (ARD Matern 5/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
+
+% ARD Rational Quadratic
+figure;
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+hold on;
+plot(xp, ypred_ardRQ_M1, 'g', 'LineWidth', 1.5);
+plot(xp, ypred_ardRQ_M1 + std_ardRQ_M1, 'g--', 'LineWidth', 1);
+plot(xp, ypred_ardRQ_M1 - std_ardRQ_M1, 'g--', 'LineWidth', 1);
+xlabel('time');
+ylabel('M1 data');
+title('GPR with ARD Rational Quadratic Kernel');
+legend('Data', 'GPR predictions (ARD Rational Quadratic kernel)', 'Uncertainty bounds', 'Location', 'best');
+hold off;
+grid on;
 % 
 % Compute marginal log liklihood
 
