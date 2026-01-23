@@ -125,6 +125,35 @@ gprMdl_ardRQ_M1 = fitrgp(tpoints_M1, datapointsM1_standardized, ...
     'KernelFunction', 'ardrationalquadratic', 'Standardize', false);
 [ypred_ardRQ_M1, std_ardRQ_M1] = predict(gprMdl_ardRQ_M1,xp);
 
+%% Reverse Transformations: Convert predictions back to original count space
+% Step 1: Reverse Z-Score (Un-standardize) to get back to log-space
+% μ_log = (μ_z × σ_train) + μ_train
+% σ²_log = σ²_z × σ²_train (note: std_SE_M1 is σ_z, so σ²_z = std_SE_M1²)
+
+% Helper function to reverse transform predictions
+% Input: ypred_z (mean in standardized space), std_z (std in standardized space)
+% Output: ypred_count (mean count), ypred_count_lower (lower bound), ypred_count_upper (upper bound)
+reverseTransform = @(ypred_z, std_z) struct(...
+    'mu_log', ypred_z * sigma_train + mu_train, ...
+    'sigma_log', std_z * sigma_train, ...
+    'mu_count_mean', exp(ypred_z * sigma_train + mu_train + 0.5 * (std_z * sigma_train).^2) - 1, ...
+    'mu_count_median', exp(ypred_z * sigma_train + mu_train) - 1, ...
+    'lower_log', (ypred_z - 1.96 * std_z) * sigma_train + mu_train, ...
+    'upper_log', (ypred_z + 1.96 * std_z) * sigma_train + mu_train, ...
+    'lower_count', exp((ypred_z - 1.96 * std_z) * sigma_train + mu_train) - 1, ...
+    'upper_count', exp((ypred_z + 1.96 * std_z) * sigma_train + mu_train) - 1);
+
+% Transform all predictions back to count space
+pred_SE = reverseTransform(ypred_SE_M1, std_SE_M1);
+pred_exp = reverseTransform(ypred_exp_M1, std_exp_M1);
+pred_M32 = reverseTransform(ypred_M32_M1, std_M32_M1);
+pred_M52 = reverseTransform(ypred_M52_M1, std_M52_M1);
+pred_RQ = reverseTransform(ypred_RQ_M1, std_RQ_M1);
+pred_ardSE = reverseTransform(ypred_ardSE_M1, std_ardSE_M1);
+pred_ardExp = reverseTransform(ypred_ardExp_M1, std_ardExp_M1);
+pred_ardM32 = reverseTransform(ypred_ardM32_M1, std_ardM32_M1);
+pred_ardM52 = reverseTransform(ypred_ardM52_M1, std_ardM52_M1);
+pred_ardRQ = reverseTransform(ypred_ardRQ_M1, std_ardRQ_M1);
 
 %%To explore later %%
 %non-stationary kernels
@@ -133,142 +162,143 @@ gprMdl_ardRQ_M1 = fitrgp(tpoints_M1, datapointsM1_standardized, ...
 %%  Plot all GP models
 
 % Squared Exponential
+% Plot original count data and reverse-transformed predictions
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_SE_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_SE_M1 + std_SE_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_SE_M1 - std_SE_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_SE.mu_count_median, 'g', 'LineWidth', 1.5);  % Median (most likely path)
+plot(xp, pred_SE.lower_count, 'g--', 'LineWidth', 1);     % Lower 95% CI
+plot(xp, pred_SE.upper_count, 'g--', 'LineWidth', 1);      % Upper 95% CI
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with Squared Exponential Kernel');
-legend('Data', 'GPR predictions (SE kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (SE kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % Exponential
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_exp_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_exp_M1 + std_exp_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_exp_M1 - std_exp_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_exp.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_exp.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_exp.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with Exponential Kernel');
-legend('Data', 'GPR predictions (Exponential kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (Exponential kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % Matern 3/2
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_M32_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_M32_M1 + std_M32_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_M32_M1 - std_M32_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_M32.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_M32.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_M32.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with Matern 3/2 Kernel');
-legend('Data', 'GPR predictions (Matern 3/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (Matern 3/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % Matern 5/2
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_M52_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_M52_M1 + std_M52_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_M52_M1 - std_M52_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_M52.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_M52.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_M52.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with Matern 5/2 Kernel');
-legend('Data', 'GPR predictions (Matern 5/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (Matern 5/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % Rational Quadratic
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_RQ_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_RQ_M1 + std_RQ_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_RQ_M1 - std_RQ_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_RQ.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_RQ.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_RQ.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with Rational Quadratic Kernel');
-legend('Data', 'GPR predictions (Rational Quadratic kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (Rational Quadratic kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % ARD Squared Exponential
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_ardSE_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_ardSE_M1 + std_ardSE_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_ardSE_M1 - std_ardSE_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardSE.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_ardSE.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardSE.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with ARD Squared Exponential Kernel');
-legend('Data', 'GPR predictions (ARD SE kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (ARD SE kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % ARD Exponential
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_ardExp_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_ardExp_M1 + std_ardExp_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_ardExp_M1 - std_ardExp_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardExp.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_ardExp.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardExp.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with ARD Exponential Kernel');
-legend('Data', 'GPR predictions (ARD Exponential kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (ARD Exponential kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % ARD Matern 3/2
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_ardM32_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_ardM32_M1 + std_ardM32_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_ardM32_M1 - std_ardM32_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardM32.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_ardM32.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardM32.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with ARD Matern 3/2 Kernel');
-legend('Data', 'GPR predictions (ARD Matern 3/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (ARD Matern 3/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % ARD Matern 5/2
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_ardM52_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_ardM52_M1 + std_ardM52_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_ardM52_M1 - std_ardM52_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardM52.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_ardM52.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardM52.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with ARD Matern 5/2 Kernel');
-legend('Data', 'GPR predictions (ARD Matern 5/2 kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (ARD Matern 5/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 
 % ARD Rational Quadratic
 figure;
-plot(tpoints_M1, datapointsM1_standardized, 'b.', 'MarkerSize', 10);
+plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
 hold on;
-plot(xp, ypred_ardRQ_M1, 'g', 'LineWidth', 1.5);
-plot(xp, ypred_ardRQ_M1 + std_ardRQ_M1, 'g--', 'LineWidth', 1);
-plot(xp, ypred_ardRQ_M1 - std_ardRQ_M1, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardRQ.mu_count_median, 'g', 'LineWidth', 1.5);
+plot(xp, pred_ardRQ.lower_count, 'g--', 'LineWidth', 1);
+plot(xp, pred_ardRQ.upper_count, 'g--', 'LineWidth', 1);
 xlabel('time');
-ylabel('M1 data (log-transformed and standardized)');
+ylabel('M1 cell count');
 title('GPR with ARD Rational Quadratic Kernel');
-legend('Data', 'GPR predictions (ARD Rational Quadratic kernel)', 'Uncertainty bounds', 'Location', 'best');
+legend('Data', 'GPR predictions (ARD Rational Quadratic kernel, median)', '95% Confidence interval', 'Location', 'best');
 hold off;
 grid on;
 % 
