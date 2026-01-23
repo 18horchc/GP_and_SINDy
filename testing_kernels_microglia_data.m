@@ -97,7 +97,7 @@ for k = 1:size(kernelNames, 1)
     kernelFunc = kernelNames{k, 1};
     kernelDisplayName = kernelNames{k, 2};
     
-    fprintf('\n--- Testing %s ---\n', kernelDisplayName);
+    fprintf('\n--- Testing %s (kernel: %s) ---\n', kernelDisplayName, kernelFunc);
     
     basisResults = cell(length(basisOptions), 4);
     basisResults(:,1) = basisOptions';
@@ -107,6 +107,11 @@ for k = 1:size(kernelNames, 1)
             gprTest = fitrgp(tpoints_M1, datapointsM1, ...
                 'KernelFunction', kernelFunc, ...
                 'BasisFunction', basisOptions{i});
+            
+            % Debug: Verify the model was created with correct kernel
+            if i == 1  % Only check first basis to avoid too much output
+                fprintf('  [Debug] Created model with kernel: %s\n', gprTest.KernelInformation.Name);
+            end
             
             % Get metrics
             yPredict = resubPredict(gprTest);
@@ -137,7 +142,14 @@ for k = 1:size(kernelNames, 1)
         [~, bestIdx] = max(cell2mat(validResults(:,2)));
         bestBasisPerKernel{k} = validResults{bestIdx, 1};
         
-        fprintf('  >>> Best basis for %s: %s\n', kernelDisplayName, bestBasisPerKernel{k});
+        % Debug: Show all LogLikelihood values found for this kernel
+        fprintf('  >>> Best basis for %s: %s (LogLikelihood: %.4f)\n', ...
+            kernelDisplayName, bestBasisPerKernel{k}, validResults{bestIdx, 2});
+        fprintf('  >>> All basis LogLikelihoods for %s: ', kernelDisplayName);
+        for j = 1:length(validResults)
+            fprintf('%s=%.4f ', validResults{j,1}, validResults{j,2});
+        end
+        fprintf('\n');
     else
         bestBasisPerKernel{k} = 'constant';  % Default fallback
         fprintf('  >>> Using default basis: constant\n');
@@ -174,6 +186,7 @@ disp(kernelBasisSummary);
 %Squared exponental (hyperparams: lengthsale (l))
 % Using kernel-specific best basis: bestBasisPerKernel{1}
 gprMdl_SE_M1 = fitrgp(tpoints_M1, datapointsM1, ...
+    'KernelFunction', 'squaredexponential', ...
     'BasisFunction', bestBasisPerKernel{1});
 [ypred_SE_M1, std_SE_M1] = predict(gprMdl_SE_M1,xp);
 
@@ -234,6 +247,121 @@ gprMdl_ardM52_M1 = fitrgp(tpoints_M1, datapointsM1, ...
 gprMdl_ardRQ_M1 = fitrgp(tpoints_M1, datapointsM1, ...
     'KernelFunction', 'ardrationalquadratic', 'BasisFunction', bestBasisPerKernel{10});
 [ypred_ardRQ_M1, std_ardRQ_M1] = predict(gprMdl_ardRQ_M1,xp);
+
+%% Debugging: Check if models are actually different
+fprintf('\n=== Debugging: Checking Model Differences ===\n');
+fprintf('SE kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_SE_M1.KernelInformation.Name, gprMdl_SE_M1.BasisFunction, gprMdl_SE_M1.LogLikelihood);
+fprintf('Exp kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_exp_M1.KernelInformation.Name, gprMdl_exp_M1.BasisFunction, gprMdl_exp_M1.LogLikelihood);
+fprintf('M32 kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_M32_M1.KernelInformation.Name, gprMdl_M32_M1.BasisFunction, gprMdl_M32_M1.LogLikelihood);
+fprintf('M52 kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_M52_M1.KernelInformation.Name, gprMdl_M52_M1.BasisFunction, gprMdl_M52_M1.LogLikelihood);
+fprintf('RQ kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_RQ_M1.KernelInformation.Name, gprMdl_RQ_M1.BasisFunction, gprMdl_RQ_M1.LogLikelihood);
+fprintf('ARD SE kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_ardSE_M1.KernelInformation.Name, gprMdl_ardSE_M1.BasisFunction, gprMdl_ardSE_M1.LogLikelihood);
+fprintf('ARD Exp kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_ardExp_M1.KernelInformation.Name, gprMdl_ardExp_M1.BasisFunction, gprMdl_ardExp_M1.LogLikelihood);
+fprintf('ARD M32 kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_ardM32_M1.KernelInformation.Name, gprMdl_ardM32_M1.BasisFunction, gprMdl_ardM32_M1.LogLikelihood);
+fprintf('ARD M52 kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_ardM52_M1.KernelInformation.Name, gprMdl_ardM52_M1.BasisFunction, gprMdl_ardM52_M1.LogLikelihood);
+fprintf('ARD RQ kernel: %s, Basis: %s, LogLikelihood: %.4f\n', ...
+    gprMdl_ardRQ_M1.KernelInformation.Name, gprMdl_ardRQ_M1.BasisFunction, gprMdl_ardRQ_M1.LogLikelihood);
+
+% Check if bestBasisPerKernel was populated correctly
+fprintf('\n=== Checking bestBasisPerKernel array ===\n');
+for k = 1:length(bestBasisPerKernel)
+    fprintf('Kernel %d (%s): Best basis = %s\n', k, kernelNames{k,2}, bestBasisPerKernel{k});
+end
+
+% Additional debugging: Check kernel parameters and predictions
+fprintf('\n=== Detailed Model Comparison ===\n');
+fprintf('SE - Kernel params: [%s], First 3 predictions: [%.4f, %.4f, %.4f]\n', ...
+    num2str(gprMdl_SE_M1.KernelInformation.KernelParameters'), ...
+    ypred_SE_M1(1), ypred_SE_M1(2), ypred_SE_M1(3));
+fprintf('Exp - Kernel params: [%s], First 3 predictions: [%.4f, %.4f, %.4f]\n', ...
+    num2str(gprMdl_exp_M1.KernelInformation.KernelParameters'), ...
+    ypred_exp_M1(1), ypred_exp_M1(2), ypred_exp_M1(3));
+fprintf('M32 - Kernel params: [%s], First 3 predictions: [%.4f, %.4f, %.4f]\n', ...
+    num2str(gprMdl_M32_M1.KernelInformation.KernelParameters'), ...
+    ypred_M32_M1(1), ypred_M32_M1(2), ypred_M32_M1(3));
+
+% Check if predictions are identical
+fprintf('\n=== Checking if predictions are identical ===\n');
+if isequal(ypred_SE_M1, ypred_exp_M1)
+    fprintf('WARNING: SE and Exp predictions are IDENTICAL!\n');
+else
+    fprintf('SE and Exp predictions differ (max diff: %.6f)\n', max(abs(ypred_SE_M1 - ypred_exp_M1)));
+end
+
+if isequal(ypred_SE_M1, ypred_M32_M1)
+    fprintf('WARNING: SE and M32 predictions are IDENTICAL!\n');
+else
+    fprintf('SE and M32 predictions differ (max diff: %.6f)\n', max(abs(ypred_SE_M1 - ypred_M32_M1)));
+end
+
+% Check Sigma (noise parameter)
+fprintf('\n=== Checking Sigma (noise parameter) ===\n');
+fprintf('SE Sigma: %.6f\n', gprMdl_SE_M1.Sigma);
+fprintf('Exp Sigma: %.6f\n', gprMdl_exp_M1.Sigma);
+fprintf('M32 Sigma: %.6f\n', gprMdl_M32_M1.Sigma);
+
+% Check basis function coefficients (Beta)
+fprintf('\n=== Checking Basis Function Coefficients (Beta) ===\n');
+fprintf('SE Beta: [%s]\n', num2str(gprMdl_SE_M1.Beta', '%.6f '));
+fprintf('Exp Beta: [%s]\n', num2str(gprMdl_exp_M1.Beta', '%.6f '));
+fprintf('M32 Beta: [%s]\n', num2str(gprMdl_M32_M1.Beta', '%.6f '));
+
+% Check Alpha values (GP coefficients)
+fprintf('\n=== Checking Alpha (GP coefficients) - first 5 values ===\n');
+fprintf('SE Alpha (first 5): [%s]\n', num2str(gprMdl_SE_M1.Alpha(1:5)', '%.6f '));
+fprintf('Exp Alpha (first 5): [%s]\n', num2str(gprMdl_exp_M1.Alpha(1:5)', '%.6f '));
+fprintf('M32 Alpha (first 5): [%s]\n', num2str(gprMdl_M32_M1.Alpha(1:5)', '%.6f '));
+
+% Check if models are the same object (memory addresses)
+fprintf('\n=== Checking if models are same objects ===\n');
+fprintf('SE model class: %s\n', class(gprMdl_SE_M1));
+fprintf('Exp model class: %s\n', class(gprMdl_exp_M1));
+tf = isequal(gprMdl_SE_M1, gprMdl_exp_M1);
+fprintf('Are SE and Exp the same object? %d\n', double(tf));
+
+% Check full prediction vectors
+fprintf('\n=== Checking full prediction vectors ===\n');
+pred_diff_SE_Exp = max(abs(ypred_SE_M1 - ypred_exp_M1));
+pred_diff_SE_M32 = max(abs(ypred_SE_M1 - ypred_M32_M1));
+fprintf('Max difference SE vs Exp: %.10f\n', pred_diff_SE_Exp);
+fprintf('Max difference SE vs M32: %.10f\n', pred_diff_SE_M32);
+if pred_diff_SE_Exp < 1e-10
+    fprintf('WARNING: SE and Exp predictions are numerically identical (diff < 1e-10)\n');
+end
+if pred_diff_SE_M32 < 1e-10
+    fprintf('WARNING: SE and M32 predictions are numerically identical (diff < 1e-10)\n');
+end
+
+% Check if basis function is dominating (compare basis-only prediction vs full GP)
+fprintf('\n=== Testing if basis function alone explains predictions ===\n');
+% Get basis function evaluation
+basis_SE = gprMdl_SE_M1.BasisFunction;
+% For PureQuadratic: f(x) = Beta(1) + Beta(2)*x + Beta(3)*x^2
+basis_pred_SE = gprMdl_SE_M1.Beta(1) + gprMdl_SE_M1.Beta(2)*xp + gprMdl_SE_M1.Beta(3)*xp.^2;
+basis_pred_Exp = gprMdl_exp_M1.Beta(1) + gprMdl_exp_M1.Beta(2)*xp + gprMdl_exp_M1.Beta(3)*xp.^2;
+fprintf('Basis-only prediction diff (SE vs Exp): %.10f\n', max(abs(basis_pred_SE - basis_pred_Exp)));
+fprintf('Full GP prediction diff (SE vs Exp): %.10f\n', pred_diff_SE_Exp);
+fprintf('Difference between basis-only and full GP for SE: %.10f\n', max(abs(basis_pred_SE - ypred_SE_M1)));
+
+% Check kernel covariance evaluation (test kernel at a few points)
+fprintf('\n=== Testing kernel covariance evaluation ===\n');
+test_x1 = tpoints_M1(1);
+test_x2 = tpoints_M1(2);
+% Manually evaluate kernels
+% Note: This is approximate - we'd need to access internal kernel functions
+% But we can check if the models have different internal structures
+fprintf('SE KernelScale: %.6f\n', gprMdl_SE_M1.KernelInformation.KernelScale);
+fprintf('Exp KernelScale: %.6f\n', gprMdl_exp_M1.KernelInformation.KernelScale);
+fprintf('M32 KernelScale: %.6f\n', gprMdl_M32_M1.KernelInformation.KernelScale);
 
 %%To explore later %%
 %non-stationary kernels
