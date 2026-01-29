@@ -10,6 +10,13 @@
 %% 
 % * What does the optimizer options in fitgrp() do? Note this is different than 
 % the hyperparameter optimization
+
+%TO DO: 
+% try defining / constraining initial hyperparameters
+% Set up code to cleanly run M2 data as well
+
+
+
 %% Data
 
 clear; clc; close all; 
@@ -17,12 +24,24 @@ clear; clc; close all;
 tpoints_M1 = [0,0,1,1,2,2,3,3,3,3,3,5,7,7,7,7,14,14,14]'; %time points where experimental data is observed
 datapointsM1 = [0,10,5,50,120,125,375,62,102,100,60,325,600,55,900,225,750,400,1300]'; %M1 experimental data
 
-tpoints_M2 = [0,0, 1, 1,1, 2, 2, 3,3,3,3,3, 5, 7, 7, 7, 7, 14,14,14]'; %time points where experimental data is observed
+tpoints_M2= [0,0, 1, 1,1, 2, 2, 3,3,3,3,3, 5, 7, 7, 7, 7, 14,14,14]'; %time points where experimental data is observed
 datapointsM2 = [0,10,170,15,50, 90,269,300,15,57,100,160, 800, 600,6,400,270,200,110,100]'; %M2 experimental data
 
 
 %for testing
 xp = linspace(0, 14, 300)'; 
+
+%% Optimizer on/off
+% Set to true to enable hyperparameter optimization for all GP fits (log and sqrt).
+% Set to false to fit with default hyperparameters only.
+optimizeHyperparams = true;
+
+if optimizeHyperparams
+    optimArgs = {'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', ...
+        struct('ShowPlots', false, 'Verbose', 0)};
+else
+    optimArgs = {};
+end
 
 %% Pre-processing
 % Log transform to ensure positive: y_log = log(y_raw + 1)
@@ -86,114 +105,116 @@ fprintf('(Note: Mean should be ~0 and std should be ~1)\n\n');
 % * Standardize = false (default) - Data is already log-transformed and standardized,
 %   so we don't want fitrgp() to standardize it again
 
-%Squared exponental (hyperparams: lengthsale (l))
 % Fit GP on standardized log-transformed data (z)
+
+
+%Squared exponental (hyperparams: lengthsale (l))
 gprMdl_SE_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'squaredexponential', 'Standardize', false);
+    'KernelFunction', 'squaredexponential', 'Standardize', false, optimArgs{:});
 [ypred_SE_M1_log, std_SE_M1_log] = predict(gprMdl_SE_M1_log,xp);
 
 
 %Exponential (aka Matern 1/2)
 gprMdl_exp_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'exponential', 'Standardize', false);
+    'KernelFunction', 'exponential', 'Standardize', false, optimArgs{:});
 [ypred_exp_M1_log, std_exp_M1_log] = predict(gprMdl_exp_M1_log,xp);
 
 
 %Matern 3/2 [v=3/2] (hyperparams: v, l)
 gprMdl_M32_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'matern32', 'Standardize', false);
+    'KernelFunction', 'matern32', 'Standardize', false, optimArgs{:});
 [ypred_M32_M1_log, std_M32_M1_log] = predict(gprMdl_M32_M1_log,xp);
 
 %Matern 5/2 [v=5/2] (hyperparams: v, l)
 gprMdl_M52_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'matern52', 'Standardize', false);
+    'KernelFunction', 'matern52', 'Standardize', false, optimArgs{:});
 [ypred_M52_M1_log, std_M52_M1_log] = predict(gprMdl_M52_M1_log,xp);
 
 %Rational Quadratic (hyperparams: alpha, l)
 gprMdl_RQ_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'rationalquadratic', 'Standardize', false);
+    'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_RQ_M1_log, std_RQ_M1_log] = predict(gprMdl_RQ_M1_log,xp);
 
 %ARD = automatic relevance determination
 %ARD squared exponential
 gprMdl_ardSE_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardsquaredexponential', 'Standardize', false);
+    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
 [ypred_ardSE_M1_log, std_ardSE_M1_log] = predict(gprMdl_ardSE_M1_log,xp);
 
 %ARD exponential
 gprMdl_ardExp_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardexponential', 'Standardize', false);
+    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
 [ypred_ardExp_M1_log, std_ardExp_M1_log] = predict(gprMdl_ardExp_M1_log,xp);
 
 %ARD Matern 3/2
 gprMdl_ardM32_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardmatern32', 'Standardize', false);
+    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
 [ypred_ardM32_M1_log, std_ardM32_M1_log] = predict(gprMdl_ardM32_M1_log,xp);
 
 
 %ARD Matern 5/2
 gprMdl_ardM52_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardmatern52', 'Standardize', false);
+    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
 [ypred_ardM52_M1_log, std_ardM52_M1_log] = predict(gprMdl_ardM52_M1_log,xp);
 
 %ARD rational quadratic
 gprMdl_ardRQ_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardrationalquadratic', 'Standardize', false);
+    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_ardRQ_M1_log, std_ardRQ_M1_log] = predict(gprMdl_ardRQ_M1_log,xp);
 
 %% GP Models with Square Root Transform
 % Fit GP models on standardized sqrt-transformed data
+% Fit GP on standardized sqrt-transformed data (z)
 
 %Squared exponental (hyperparams: lengthsale (l))
-% Fit GP on standardized sqrt-transformed data (z)
 gprMdl_SE_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'squaredexponential', 'Standardize', false);
+    'KernelFunction', 'squaredexponential', 'Standardize', false, optimArgs{:});
 [ypred_SE_M1_sqrt, std_SE_M1_sqrt] = predict(gprMdl_SE_M1_sqrt,xp);
 
 %Exponential (aka Matern 1/2)
 gprMdl_exp_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'exponential', 'Standardize', false);
+    'KernelFunction', 'exponential', 'Standardize', false, optimArgs{:});
 [ypred_exp_M1_sqrt, std_exp_M1_sqrt] = predict(gprMdl_exp_M1_sqrt,xp);
 
 %Matern 3/2 [v=3/2] (hyperparams: v, l)
 gprMdl_M32_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'matern32', 'Standardize', false);
+    'KernelFunction', 'matern32', 'Standardize', false, optimArgs{:});
 [ypred_M32_M1_sqrt, std_M32_M1_sqrt] = predict(gprMdl_M32_M1_sqrt,xp);
 
 %Matern 5/2 [v=5/2] (hyperparams: v, l)
 gprMdl_M52_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'matern52', 'Standardize', false);
+    'KernelFunction', 'matern52', 'Standardize', false, optimArgs{:});
 [ypred_M52_M1_sqrt, std_M52_M1_sqrt] = predict(gprMdl_M52_M1_sqrt,xp);
 
 %Rational Quadratic (hyperparams: alpha, l)
 gprMdl_RQ_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'rationalquadratic', 'Standardize', false);
+    'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_RQ_M1_sqrt, std_RQ_M1_sqrt] = predict(gprMdl_RQ_M1_sqrt,xp);
 
 %ARD = automatic relevance determination
 %ARD squared exponential
 gprMdl_ardSE_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardsquaredexponential', 'Standardize', false);
+    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
 [ypred_ardSE_M1_sqrt, std_ardSE_M1_sqrt] = predict(gprMdl_ardSE_M1_sqrt,xp);
 
 %ARD exponential
 gprMdl_ardExp_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardexponential', 'Standardize', false);
+    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
 [ypred_ardExp_M1_sqrt, std_ardExp_M1_sqrt] = predict(gprMdl_ardExp_M1_sqrt,xp);
 
 %ARD Matern 3/2
 gprMdl_ardM32_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardmatern32', 'Standardize', false);
+    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
 [ypred_ardM32_M1_sqrt, std_ardM32_M1_sqrt] = predict(gprMdl_ardM32_M1_sqrt,xp);
 
 %ARD Matern 5/2
 gprMdl_ardM52_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardmatern52', 'Standardize', false);
+    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
 [ypred_ardM52_M1_sqrt, std_ardM52_M1_sqrt] = predict(gprMdl_ardM52_M1_sqrt,xp);
 
 %ARD rational quadratic
 gprMdl_ardRQ_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardrationalquadratic', 'Standardize', false);
+    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_ardRQ_M1_sqrt, std_ardRQ_M1_sqrt] = predict(gprMdl_ardRQ_M1_sqrt,xp);
 
 %%To explore later %%
