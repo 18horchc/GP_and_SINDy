@@ -13,7 +13,6 @@
 
 %TO DO: 
 % try defining / constraining initial hyperparameters
-% Set up code to cleanly run M2 data as well
 
 
 
@@ -34,7 +33,7 @@ xp = linspace(0, 14, 300)';
 %% Optimizer on/off
 % Set to true to enable hyperparameter optimization for all GP fits (log and sqrt).
 % Set to false to fit with default hyperparameters only.
-optimizeHyperparams = true;
+optimizeHyperparams = false;
 
 if optimizeHyperparams
     optimArgs = {'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', ...
@@ -83,7 +82,17 @@ fprintf('Standardized (sqrt) M1 data: min = %.4f, max = %.4f, mean = %.6f, std =
     mean(datapointsM1_standardized_sqrt), std(datapointsM1_standardized_sqrt));
 fprintf('(Note: Mean should be ~0 and std should be ~1)\n\n');
 
-
+%% Pre-processing M2 (same steps as M1)
+datapointsM2_log = log(datapointsM2 + 1);
+datapointsM2_sqrt = sqrt(datapointsM2);
+mu_train_log_M2 = mean(datapointsM2_log);
+sigma_train_log_M2 = std(datapointsM2_log);
+datapointsM2_standardized_log = (datapointsM2_log - mu_train_log_M2) / sigma_train_log_M2;
+mu_train_sqrt_M2 = mean(datapointsM2_sqrt);
+sigma_train_sqrt_M2 = std(datapointsM2_sqrt);
+datapointsM2_standardized_sqrt = (datapointsM2_sqrt - mu_train_sqrt_M2) / sigma_train_sqrt_M2;
+fprintf('M2: Original min = %.2f, max = %.2f | Log std = %.4f | Sqrt std = %.4f\n\n', ...
+    min(datapointsM2), max(datapointsM2), std(datapointsM2_standardized_log), std(datapointsM2_standardized_sqrt));
 
 
 
@@ -217,6 +226,70 @@ gprMdl_ardRQ_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
     'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_ardRQ_M1_sqrt, std_ardRQ_M1_sqrt] = predict(gprMdl_ardRQ_M1_sqrt,xp);
 
+%% GP Models M2 (Log and Sqrt transforms)
+% Log transform models
+gprMdl_SE_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'squaredexponential', 'Standardize', false, optimArgs{:});
+[ypred_SE_M2_log, std_SE_M2_log] = predict(gprMdl_SE_M2_log,xp);
+gprMdl_exp_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'exponential', 'Standardize', false, optimArgs{:});
+[ypred_exp_M2_log, std_exp_M2_log] = predict(gprMdl_exp_M2_log,xp);
+gprMdl_M32_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'matern32', 'Standardize', false, optimArgs{:});
+[ypred_M32_M2_log, std_M32_M2_log] = predict(gprMdl_M32_M2_log,xp);
+gprMdl_M52_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'matern52', 'Standardize', false, optimArgs{:});
+[ypred_M52_M2_log, std_M52_M2_log] = predict(gprMdl_M52_M2_log,xp);
+gprMdl_RQ_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
+[ypred_RQ_M2_log, std_RQ_M2_log] = predict(gprMdl_RQ_M2_log,xp);
+gprMdl_ardSE_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
+[ypred_ardSE_M2_log, std_ardSE_M2_log] = predict(gprMdl_ardSE_M2_log,xp);
+gprMdl_ardExp_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
+[ypred_ardExp_M2_log, std_ardExp_M2_log] = predict(gprMdl_ardExp_M2_log,xp);
+gprMdl_ardM32_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
+[ypred_ardM32_M2_log, std_ardM32_M2_log] = predict(gprMdl_ardM32_M2_log,xp);
+gprMdl_ardM52_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
+[ypred_ardM52_M2_log, std_ardM52_M2_log] = predict(gprMdl_ardM52_M2_log,xp);
+gprMdl_ardRQ_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
+    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
+[ypred_ardRQ_M2_log, std_ardRQ_M2_log] = predict(gprMdl_ardRQ_M2_log,xp);
+% Sqrt transform models
+gprMdl_SE_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'squaredexponential', 'Standardize', false, optimArgs{:});
+[ypred_SE_M2_sqrt, std_SE_M2_sqrt] = predict(gprMdl_SE_M2_sqrt,xp);
+gprMdl_exp_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'exponential', 'Standardize', false, optimArgs{:});
+[ypred_exp_M2_sqrt, std_exp_M2_sqrt] = predict(gprMdl_exp_M2_sqrt,xp);
+gprMdl_M32_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'matern32', 'Standardize', false, optimArgs{:});
+[ypred_M32_M2_sqrt, std_M32_M2_sqrt] = predict(gprMdl_M32_M2_sqrt,xp);
+gprMdl_M52_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'matern52', 'Standardize', false, optimArgs{:});
+[ypred_M52_M2_sqrt, std_M52_M2_sqrt] = predict(gprMdl_M52_M2_sqrt,xp);
+gprMdl_RQ_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
+[ypred_RQ_M2_sqrt, std_RQ_M2_sqrt] = predict(gprMdl_RQ_M2_sqrt,xp);
+gprMdl_ardSE_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
+[ypred_ardSE_M2_sqrt, std_ardSE_M2_sqrt] = predict(gprMdl_ardSE_M2_sqrt,xp);
+gprMdl_ardExp_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
+[ypred_ardExp_M2_sqrt, std_ardExp_M2_sqrt] = predict(gprMdl_ardExp_M2_sqrt,xp);
+gprMdl_ardM32_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
+[ypred_ardM32_M2_sqrt, std_ardM32_M2_sqrt] = predict(gprMdl_ardM32_M2_sqrt,xp);
+gprMdl_ardM52_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
+[ypred_ardM52_M2_sqrt, std_ardM52_M2_sqrt] = predict(gprMdl_ardM52_M2_sqrt,xp);
+gprMdl_ardRQ_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
+    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
+[ypred_ardRQ_M2_sqrt, std_ardRQ_M2_sqrt] = predict(gprMdl_ardRQ_M2_sqrt,xp);
+
 %%To explore later %%
 %non-stationary kernels
 %combining kernels through sums or products
@@ -251,6 +324,26 @@ reverseTransformSqrt = @(ypred_z, std_z) struct(...
     'lower_count', max(0, (ypred_z - 1.96 * std_z) * sigma_train_sqrt + mu_train_sqrt).^2, ...
     'upper_count', ((ypred_z + 1.96 * std_z) * sigma_train_sqrt + mu_train_sqrt).^2);
 
+% M2 reverse transform helpers (use M2 train stats)
+reverseTransformLog_M2 = @(ypred_z, std_z) struct(...
+    'mu_log', ypred_z * sigma_train_log_M2 + mu_train_log_M2, ...
+    'sigma_log', std_z * sigma_train_log_M2, ...
+    'mu_count_mean', exp(ypred_z * sigma_train_log_M2 + mu_train_log_M2 + 0.5 * (std_z * sigma_train_log_M2).^2) - 1, ...
+    'mu_count_median', exp(ypred_z * sigma_train_log_M2 + mu_train_log_M2) - 1, ...
+    'lower_log', (ypred_z - 1.96 * std_z) * sigma_train_log_M2 + mu_train_log_M2, ...
+    'upper_log', (ypred_z + 1.96 * std_z) * sigma_train_log_M2 + mu_train_log_M2, ...
+    'lower_count', exp((ypred_z - 1.96 * std_z) * sigma_train_log_M2 + mu_train_log_M2) - 1, ...
+    'upper_count', exp((ypred_z + 1.96 * std_z) * sigma_train_log_M2 + mu_train_log_M2) - 1);
+reverseTransformSqrt_M2 = @(ypred_z, std_z) struct(...
+    'mu_sqrt', ypred_z * sigma_train_sqrt_M2 + mu_train_sqrt_M2, ...
+    'sigma_sqrt', std_z * sigma_train_sqrt_M2, ...
+    'mu_count_mean', (ypred_z * sigma_train_sqrt_M2 + mu_train_sqrt_M2).^2 + (std_z * sigma_train_sqrt_M2).^2, ...
+    'mu_count_median', (ypred_z * sigma_train_sqrt_M2 + mu_train_sqrt_M2).^2, ...
+    'lower_sqrt', (ypred_z - 1.96 * std_z) * sigma_train_sqrt_M2 + mu_train_sqrt_M2, ...
+    'upper_sqrt', (ypred_z + 1.96 * std_z) * sigma_train_sqrt_M2 + mu_train_sqrt_M2, ...
+    'lower_count', max(0, (ypred_z - 1.96 * std_z) * sigma_train_sqrt_M2 + mu_train_sqrt_M2).^2, ...
+    'upper_count', ((ypred_z + 1.96 * std_z) * sigma_train_sqrt_M2 + mu_train_sqrt_M2).^2);
+
 % Transform all predictions back to count space (log transform)
 pred_SE_log = reverseTransformLog(ypred_SE_M1_log, std_SE_M1_log);
 pred_exp_log = reverseTransformLog(ypred_exp_M1_log, std_exp_M1_log);
@@ -275,301 +368,101 @@ pred_ardM32_sqrt = reverseTransformSqrt(ypred_ardM32_M1_sqrt, std_ardM32_M1_sqrt
 pred_ardM52_sqrt = reverseTransformSqrt(ypred_ardM52_M1_sqrt, std_ardM52_M1_sqrt);
 pred_ardRQ_sqrt = reverseTransformSqrt(ypred_ardRQ_M1_sqrt, std_ardRQ_M1_sqrt);
 
+% Transform M2 predictions back to count space
+pred_SE_log_M2 = reverseTransformLog_M2(ypred_SE_M2_log, std_SE_M2_log);
+pred_exp_log_M2 = reverseTransformLog_M2(ypred_exp_M2_log, std_exp_M2_log);
+pred_M32_log_M2 = reverseTransformLog_M2(ypred_M32_M2_log, std_M32_M2_log);
+pred_M52_log_M2 = reverseTransformLog_M2(ypred_M52_M2_log, std_M52_M2_log);
+pred_RQ_log_M2 = reverseTransformLog_M2(ypred_RQ_M2_log, std_RQ_M2_log);
+pred_ardSE_log_M2 = reverseTransformLog_M2(ypred_ardSE_M2_log, std_ardSE_M2_log);
+pred_ardExp_log_M2 = reverseTransformLog_M2(ypred_ardExp_M2_log, std_ardExp_M2_log);
+pred_ardM32_log_M2 = reverseTransformLog_M2(ypred_ardM32_M2_log, std_ardM32_M2_log);
+pred_ardM52_log_M2 = reverseTransformLog_M2(ypred_ardM52_M2_log, std_ardM52_M2_log);
+pred_ardRQ_log_M2 = reverseTransformLog_M2(ypred_ardRQ_M2_log, std_ardRQ_M2_log);
+pred_SE_sqrt_M2 = reverseTransformSqrt_M2(ypred_SE_M2_sqrt, std_SE_M2_sqrt);
+pred_exp_sqrt_M2 = reverseTransformSqrt_M2(ypred_exp_M2_sqrt, std_exp_M2_sqrt);
+pred_M32_sqrt_M2 = reverseTransformSqrt_M2(ypred_M32_M2_sqrt, std_M32_M2_sqrt);
+pred_M52_sqrt_M2 = reverseTransformSqrt_M2(ypred_M52_M2_sqrt, std_M52_M2_sqrt);
+pred_RQ_sqrt_M2 = reverseTransformSqrt_M2(ypred_RQ_M2_sqrt, std_RQ_M2_sqrt);
+pred_ardSE_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardSE_M2_sqrt, std_ardSE_M2_sqrt);
+pred_ardExp_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardExp_M2_sqrt, std_ardExp_M2_sqrt);
+pred_ardM32_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardM32_M2_sqrt, std_ardM32_M2_sqrt);
+pred_ardM52_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardM52_M2_sqrt, std_ardM52_M2_sqrt);
+pred_ardRQ_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardRQ_M2_sqrt, std_ardRQ_M2_sqrt);
 
-% 
-%%  Plot all GP models
+%%  Plot all GP models (M1: one figure with 10 tabs; M2: separate figure with 10 tabs)
 
-% Squared Exponential
-% Plot original count data and reverse-transformed predictions
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_SE_log.mu_count_median, 'g', 'LineWidth', 1.5);  % Median (most likely path)
-plot(xp, pred_SE_log.lower_count, 'g--', 'LineWidth', 1);     % Lower 95% CI
-plot(xp, pred_SE_log.upper_count, 'g--', 'LineWidth', 1);      % Upper 95% CI
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Squared Exponential Kernel (Log Transform)');
-legend('Data', 'GPR predictions (SE kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_SE_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);  % Mean (corrected)
-plot(xp, pred_SE_sqrt.lower_count, 'r--', 'LineWidth', 1);     % Lower 95% CI
-plot(xp, pred_SE_sqrt.upper_count, 'r--', 'LineWidth', 1);      % Upper 95% CI
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Squared Exponential Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (SE kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
+% M1: one figure with 10 tabs (each tab = one kernel, log + sqrt subplots)
+pred_log_M1 = {pred_SE_log, pred_exp_log, pred_M32_log, pred_M52_log, pred_RQ_log, ...
+    pred_ardSE_log, pred_ardExp_log, pred_ardM32_log, pred_ardM52_log, pred_ardRQ_log};
+pred_sqrt_M1 = {pred_SE_sqrt, pred_exp_sqrt, pred_M32_sqrt, pred_M52_sqrt, pred_RQ_sqrt, ...
+    pred_ardSE_sqrt, pred_ardExp_sqrt, pred_ardM32_sqrt, pred_ardM52_sqrt, pred_ardRQ_sqrt};
+kernelTabNames = {'Squared Exp', 'Exponential', 'Matern 3/2', 'Matern 5/2', 'Rational Quad', ...
+    'ARD SE', 'ARD Exp', 'ARD Matern 3/2', 'ARD Matern 5/2', 'ARD RQ'};
 
-% Exponential
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_exp_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_exp_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_exp_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Exponential Kernel (Log Transform)');
-legend('Data', 'GPR predictions (Exponential kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_exp_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_exp_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_exp_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Exponential Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (Exponential kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
+figM1 = figure('Name', 'M1 GP Kernels', 'NumberTitle', 'off');
+tgM1 = uitabgroup(figM1);
+for k = 1:10
+    t = uitab(tgM1, 'Title', kernelTabNames{k});
+    ax1 = axes('Parent', t, 'Position', [0.1 0.55 0.85 0.38]);
+    plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+    hold(ax1, 'on');
+    plot(ax1, xp, pred_log_M1{k}.mu_count_median, 'g', 'LineWidth', 1.5);
+    plot(ax1, xp, pred_log_M1{k}.lower_count, 'g--', 'LineWidth', 1);
+    plot(ax1, xp, pred_log_M1{k}.upper_count, 'g--', 'LineWidth', 1);
+    ylabel(ax1, 'M1 cell count');
+    title(ax1, 'Log transform (median)');
+    legend(ax1, 'Data', 'GPR (median)', '95% CI', 'Location', 'best');
+    hold(ax1, 'off');
+    grid(ax1, 'on');
+    ax2 = axes('Parent', t, 'Position', [0.1 0.08 0.85 0.38]);
+    plot(ax2, tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
+    hold(ax2, 'on');
+    plot(ax2, xp, pred_sqrt_M1{k}.mu_count_mean, 'r', 'LineWidth', 1.5);
+    plot(ax2, xp, pred_sqrt_M1{k}.lower_count, 'r--', 'LineWidth', 1);
+    plot(ax2, xp, pred_sqrt_M1{k}.upper_count, 'r--', 'LineWidth', 1);
+    xlabel(ax2, 'time');
+    ylabel(ax2, 'M1 cell count');
+    title(ax2, 'Sqrt transform (mean)');
+    legend(ax2, 'Data', 'GPR (mean)', '95% CI', 'Location', 'best');
+    hold(ax2, 'off');
+    grid(ax2, 'on');
+end
 
-% Matern 3/2
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_M32_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_M32_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_M32_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Matern 3/2 Kernel (Log Transform)');
-legend('Data', 'GPR predictions (Matern 3/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_M32_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_M32_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_M32_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Matern 3/2 Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (Matern 3/2 kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
+% M2: separate figure with 10 tabs (same structure)
+pred_log_M2 = {pred_SE_log_M2, pred_exp_log_M2, pred_M32_log_M2, pred_M52_log_M2, pred_RQ_log_M2, ...
+    pred_ardSE_log_M2, pred_ardExp_log_M2, pred_ardM32_log_M2, pred_ardM52_log_M2, pred_ardRQ_log_M2};
+pred_sqrt_M2 = {pred_SE_sqrt_M2, pred_exp_sqrt_M2, pred_M32_sqrt_M2, pred_M52_sqrt_M2, pred_RQ_sqrt_M2, ...
+    pred_ardSE_sqrt_M2, pred_ardExp_sqrt_M2, pred_ardM32_sqrt_M2, pred_ardM52_sqrt_M2, pred_ardRQ_sqrt_M2};
 
-% Matern 5/2
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_M52_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_M52_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_M52_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Matern 5/2 Kernel (Log Transform)');
-legend('Data', 'GPR predictions (Matern 5/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_M52_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_M52_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_M52_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Matern 5/2 Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (Matern 5/2 kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-
-% Rational Quadratic
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_RQ_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_RQ_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_RQ_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Rational Quadratic Kernel (Log Transform)');
-legend('Data', 'GPR predictions (Rational Quadratic kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_RQ_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_RQ_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_RQ_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with Rational Quadratic Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (Rational Quadratic kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-
-% ARD Squared Exponential
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardSE_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_ardSE_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_ardSE_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Squared Exponential Kernel (Log Transform)');
-legend('Data', 'GPR predictions (ARD SE kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardSE_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_ardSE_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_ardSE_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Squared Exponential Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (ARD SE kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-
-% ARD Exponential
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardExp_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_ardExp_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_ardExp_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Exponential Kernel (Log Transform)');
-legend('Data', 'GPR predictions (ARD Exponential kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardExp_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_ardExp_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_ardExp_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Exponential Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (ARD Exponential kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-
-% ARD Matern 3/2
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardM32_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_ardM32_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_ardM32_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Matern 3/2 Kernel (Log Transform)');
-legend('Data', 'GPR predictions (ARD Matern 3/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardM32_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_ardM32_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_ardM32_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Matern 3/2 Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (ARD Matern 3/2 kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-
-% ARD Matern 5/2
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardM52_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_ardM52_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_ardM52_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Matern 5/2 Kernel (Log Transform)');
-legend('Data', 'GPR predictions (ARD Matern 5/2 kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardM52_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_ardM52_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_ardM52_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Matern 5/2 Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (ARD Matern 5/2 kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-
-% ARD Rational Quadratic
-figure;
-% Top subplot: Log transform
-subplot(2,1,1);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardRQ_log.mu_count_median, 'g', 'LineWidth', 1.5);
-plot(xp, pred_ardRQ_log.lower_count, 'g--', 'LineWidth', 1);
-plot(xp, pred_ardRQ_log.upper_count, 'g--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Rational Quadratic Kernel (Log Transform)');
-legend('Data', 'GPR predictions (ARD Rational Quadratic kernel, median)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on;
-% Bottom subplot: Sqrt transform
-subplot(2,1,2);
-plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
-hold on;
-plot(xp, pred_ardRQ_sqrt.mu_count_mean, 'r', 'LineWidth', 1.5);
-plot(xp, pred_ardRQ_sqrt.lower_count, 'r--', 'LineWidth', 1);
-plot(xp, pred_ardRQ_sqrt.upper_count, 'r--', 'LineWidth', 1);
-xlabel('time');
-ylabel('M1 cell count');
-title('GPR with ARD Rational Quadratic Kernel (Sqrt Transform)');
-legend('Data', 'GPR predictions (ARD Rational Quadratic kernel, mean)', '95% Confidence interval', 'Location', 'best');
-hold off;
-grid on; 
-
+figM2 = figure('Name', 'M2 GP Kernels', 'NumberTitle', 'off');
+tgM2 = uitabgroup(figM2);
+for k = 1:10
+    t = uitab(tgM2, 'Title', kernelTabNames{k});
+    ax1 = axes('Parent', t, 'Position', [0.1 0.55 0.85 0.38]);
+    plot(ax1, tpoints_M2, datapointsM2, 'b.', 'MarkerSize', 10);
+    hold(ax1, 'on');
+    plot(ax1, xp, pred_log_M2{k}.mu_count_median, 'g', 'LineWidth', 1.5);
+    plot(ax1, xp, pred_log_M2{k}.lower_count, 'g--', 'LineWidth', 1);
+    plot(ax1, xp, pred_log_M2{k}.upper_count, 'g--', 'LineWidth', 1);
+    ylabel(ax1, 'M2 cell count');
+    title(ax1, 'Log transform (median)');
+    legend(ax1, 'Data', 'GPR (median)', '95% CI', 'Location', 'best');
+    hold(ax1, 'off');
+    grid(ax1, 'on');
+    ax2 = axes('Parent', t, 'Position', [0.1 0.08 0.85 0.38]);
+    plot(ax2, tpoints_M2, datapointsM2, 'b.', 'MarkerSize', 10);
+    hold(ax2, 'on');
+    plot(ax2, xp, pred_sqrt_M2{k}.mu_count_mean, 'r', 'LineWidth', 1.5);
+    plot(ax2, xp, pred_sqrt_M2{k}.lower_count, 'r--', 'LineWidth', 1);
+    plot(ax2, xp, pred_sqrt_M2{k}.upper_count, 'r--', 'LineWidth', 1);
+    xlabel(ax2, 'time');
+    ylabel(ax2, 'M2 cell count');
+    title(ax2, 'Sqrt transform (mean)');
+    legend(ax2, 'Data', 'GPR (mean)', '95% CI', 'Location', 'best');
+    hold(ax2, 'off');
+    grid(ax2, 'on');
+end
 
 %% Metrics Table for Log Transform
 
@@ -706,6 +599,80 @@ disp(resultsTable_sqrt);
 resultsTableSorted_sqrt = sortrows(resultsTable_sqrt, 'LogLikelihood', 'descend');
 disp('Sorted by LogLikelihood (best to worst):');
 disp(resultsTableSorted_sqrt);
+
+%% Metrics Table for M2 (Log and Sqrt)
+% M2 Log transform
+models_log_M2 = {
+    gprMdl_SE_M2_log, 'Squared Exponential';
+    gprMdl_exp_M2_log, 'Exponential';
+    gprMdl_M32_M2_log, 'Matern 3/2';
+    gprMdl_M52_M2_log, 'Matern 5/2';
+    gprMdl_RQ_M2_log, 'Rational Quadratic';
+    gprMdl_ardSE_M2_log, 'ARD Squared Exponential';
+    gprMdl_ardExp_M2_log, 'ARD Exponential';
+    gprMdl_ardM32_M2_log, 'ARD Matern 3/2';
+    gprMdl_ardM52_M2_log, 'ARD Matern 5/2';
+    gprMdl_ardRQ_M2_log, 'ARD Rational Quadratic'
+};
+kernelNames_log_M2 = cell(numModels, 1);
+logLikelihoods_log_M2 = zeros(numModels, 1);
+RMSEs_log_M2 = zeros(numModels, 1);
+R2s_log_M2 = zeros(numModels, 1);
+for i = 1:numModels
+    model = models_log_M2{i, 1};
+    kernelNames_log_M2{i} = models_log_M2{i, 2};
+    logLikelihoods_log_M2(i) = model.LogLikelihood;
+    yPredict = resubPredict(model);
+    yActual = datapointsM2_standardized_log;
+    residuals = yActual - yPredict;
+    RMSEs_log_M2(i) = sqrt(mean(residuals.^2));
+    SSR = sum((yPredict - mean(yActual)).^2);
+    SST = sum((yActual - mean(yActual)).^2);
+    R2s_log_M2(i) = SSR / SST;
+end
+resultsTable_log_M2 = table(kernelNames_log_M2, logLikelihoods_log_M2, RMSEs_log_M2, R2s_log_M2, ...
+    'VariableNames', {'Kernel', 'LogLikelihood', 'RMSE', 'R2'});
+disp('GPR Model Comparison Results for M2 Data (Log Transform):');
+disp(resultsTable_log_M2);
+disp('Sorted by LogLikelihood (best to worst):');
+disp(sortrows(resultsTable_log_M2, 'LogLikelihood', 'descend'));
+
+% M2 Sqrt transform
+models_sqrt_M2 = {
+    gprMdl_SE_M2_sqrt, 'Squared Exponential';
+    gprMdl_exp_M2_sqrt, 'Exponential';
+    gprMdl_M32_M2_sqrt, 'Matern 3/2';
+    gprMdl_M52_M2_sqrt, 'Matern 5/2';
+    gprMdl_RQ_M2_sqrt, 'Rational Quadratic';
+    gprMdl_ardSE_M2_sqrt, 'ARD Squared Exponential';
+    gprMdl_ardExp_M2_sqrt, 'ARD Exponential';
+    gprMdl_ardM32_M2_sqrt, 'ARD Matern 3/2';
+    gprMdl_ardM52_M2_sqrt, 'ARD Matern 5/2';
+    gprMdl_ardRQ_M2_sqrt, 'ARD Rational Quadratic'
+};
+kernelNames_sqrt_M2 = cell(numModels, 1);
+logLikelihoods_sqrt_M2 = zeros(numModels, 1);
+RMSEs_sqrt_M2 = zeros(numModels, 1);
+R2s_sqrt_M2 = zeros(numModels, 1);
+for i = 1:numModels
+    model = models_sqrt_M2{i, 1};
+    kernelNames_sqrt_M2{i} = models_sqrt_M2{i, 2};
+    logLikelihoods_sqrt_M2(i) = model.LogLikelihood;
+    yPredict = resubPredict(model);
+    yActual = datapointsM2_standardized_sqrt;
+    residuals = yActual - yPredict;
+    RMSEs_sqrt_M2(i) = sqrt(mean(residuals.^2));
+    SSR = sum((yPredict - mean(yActual)).^2);
+    SST = sum((yActual - mean(yActual)).^2);
+    R2s_sqrt_M2(i) = SSR / SST;
+end
+resultsTable_sqrt_M2 = table(kernelNames_sqrt_M2, logLikelihoods_sqrt_M2, RMSEs_sqrt_M2, R2s_sqrt_M2, ...
+    'VariableNames', {'Kernel', 'LogLikelihood', 'RMSE', 'R2'});
+disp('GPR Model Comparison Results for M2 Data (Sqrt Transform):');
+disp(resultsTable_sqrt_M2);
+disp('Sorted by LogLikelihood (best to worst):');
+disp(sortrows(resultsTable_sqrt_M2, 'LogLikelihood', 'descend'));
+
 %% 
 % 
 % *With Hyperparameter optimization*
