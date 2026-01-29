@@ -33,7 +33,7 @@ xp = linspace(0, 14, 300)';
 %% Optimizer on/off
 % Set to true to enable hyperparameter optimization for all GP fits (log and sqrt).
 % Set to false to fit with default hyperparameters only.
-optimizeHyperparams = false;
+optimizeHyperparams = true;
 
 if optimizeHyperparams
     optimArgs = {'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', ...
@@ -672,6 +672,64 @@ disp('GPR Model Comparison Results for M2 Data (Sqrt Transform):');
 disp(resultsTable_sqrt_M2);
 disp('Sorted by LogLikelihood (best to worst):');
 disp(sortrows(resultsTable_sqrt_M2, 'LogLikelihood', 'descend'));
+
+%% Hyperparameter tables (KernelParameters + Sigma) for each model
+% Build hyperparameter string from model.KernelInformation.KernelParameterNames,
+% model.KernelInformation.KernelParameters, and model.Sigma
+kernelNames_hp = cell(numModels, 1);
+hyperparamStrs = cell(numModels, 1);
+
+% M1 Log
+for i = 1:numModels
+    model = models_log{i, 1};
+    kernelNames_hp{i} = models_log{i, 2};
+    pNames = cellstr(model.KernelInformation.KernelParameterNames);
+    pVals = model.KernelInformation.KernelParameters;
+    parts = arrayfun(@(j) sprintf('%s=%g', pNames{j}, pVals(j)), 1:numel(pNames), 'UniformOutput', false);
+    hyperparamStrs{i} = [strjoin(parts, ', '), sprintf(', Sigma=%g', model.Sigma)];
+end
+hyperparamTable_M1_log = table(kernelNames_hp, hyperparamStrs, 'VariableNames', {'Kernel', 'Hyperparameters'});
+disp('Hyperparameters used (M1, Log transform):');
+disp(hyperparamTable_M1_log);
+
+% M1 Sqrt
+for i = 1:numModels
+    model = models_sqrt{i, 1};
+    kernelNames_hp{i} = models_sqrt{i, 2};
+    pNames = cellstr(model.KernelInformation.KernelParameterNames);
+    pVals = model.KernelInformation.KernelParameters;
+    parts = arrayfun(@(j) sprintf('%s=%g', pNames{j}, pVals(j)), 1:numel(pNames), 'UniformOutput', false);
+    hyperparamStrs{i} = [strjoin(parts, ', '), sprintf(', Sigma=%g', model.Sigma)];
+end
+hyperparamTable_M1_sqrt = table(kernelNames_hp, hyperparamStrs, 'VariableNames', {'Kernel', 'Hyperparameters'});
+disp('Hyperparameters used (M1, Sqrt transform):');
+disp(hyperparamTable_M1_sqrt);
+
+% M2 Log
+for i = 1:numModels
+    model = models_log_M2{i, 1};
+    kernelNames_hp{i} = models_log_M2{i, 2};
+    pNames = cellstr(model.KernelInformation.KernelParameterNames);
+    pVals = model.KernelInformation.KernelParameters;
+    parts = arrayfun(@(j) sprintf('%s=%g', pNames{j}, pVals(j)), 1:numel(pNames), 'UniformOutput', false);
+    hyperparamStrs{i} = [strjoin(parts, ', '), sprintf(', Sigma=%g', model.Sigma)];
+end
+hyperparamTable_M2_log = table(kernelNames_hp, hyperparamStrs, 'VariableNames', {'Kernel', 'Hyperparameters'});
+disp('Hyperparameters used (M2, Log transform):');
+disp(hyperparamTable_M2_log);
+
+% M2 Sqrt
+for i = 1:numModels
+    model = models_sqrt_M2{i, 1};
+    kernelNames_hp{i} = models_sqrt_M2{i, 2};
+    pNames = cellstr(model.KernelInformation.KernelParameterNames);
+    pVals = model.KernelInformation.KernelParameters;
+    parts = arrayfun(@(j) sprintf('%s=%g', pNames{j}, pVals(j)), 1:numel(pNames), 'UniformOutput', false);
+    hyperparamStrs{i} = [strjoin(parts, ', '), sprintf(', Sigma=%g', model.Sigma)];
+end
+hyperparamTable_M2_sqrt = table(kernelNames_hp, hyperparamStrs, 'VariableNames', {'Kernel', 'Hyperparameters'});
+disp('Hyperparameters used (M2, Sqrt transform):');
+disp(hyperparamTable_M2_sqrt);
 
 %% 
 % 
