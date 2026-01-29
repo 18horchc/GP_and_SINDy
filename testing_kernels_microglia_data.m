@@ -33,7 +33,7 @@ xp = linspace(0, 14, 300)';
 %% Optimizer on/off
 % Set to true to enable hyperparameter optimization for all GP fits (log and sqrt).
 % Set to false to fit with default hyperparameters only.
-optimizeHyperparams = true;
+optimizeHyperparams = false;
 
 if optimizeHyperparams
     optimArgs = {'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', ...
@@ -144,33 +144,6 @@ gprMdl_RQ_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
     'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_RQ_M1_log, std_RQ_M1_log] = predict(gprMdl_RQ_M1_log,xp);
 
-%ARD = automatic relevance determination
-%ARD squared exponential
-gprMdl_ardSE_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardSE_M1_log, std_ardSE_M1_log] = predict(gprMdl_ardSE_M1_log,xp);
-
-%ARD exponential
-gprMdl_ardExp_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardExp_M1_log, std_ardExp_M1_log] = predict(gprMdl_ardExp_M1_log,xp);
-
-%ARD Matern 3/2
-gprMdl_ardM32_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
-[ypred_ardM32_M1_log, std_ardM32_M1_log] = predict(gprMdl_ardM32_M1_log,xp);
-
-
-%ARD Matern 5/2
-gprMdl_ardM52_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
-[ypred_ardM52_M1_log, std_ardM52_M1_log] = predict(gprMdl_ardM52_M1_log,xp);
-
-%ARD rational quadratic
-gprMdl_ardRQ_M1_log = fitrgp(tpoints_M1, datapointsM1_standardized_log, ...
-    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
-[ypred_ardRQ_M1_log, std_ardRQ_M1_log] = predict(gprMdl_ardRQ_M1_log,xp);
-
 %% GP Models with Square Root Transform
 % Fit GP models on standardized sqrt-transformed data
 % Fit GP on standardized sqrt-transformed data (z)
@@ -200,32 +173,6 @@ gprMdl_RQ_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
     'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_RQ_M1_sqrt, std_RQ_M1_sqrt] = predict(gprMdl_RQ_M1_sqrt,xp);
 
-%ARD = automatic relevance determination
-%ARD squared exponential
-gprMdl_ardSE_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardSE_M1_sqrt, std_ardSE_M1_sqrt] = predict(gprMdl_ardSE_M1_sqrt,xp);
-
-%ARD exponential
-gprMdl_ardExp_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardExp_M1_sqrt, std_ardExp_M1_sqrt] = predict(gprMdl_ardExp_M1_sqrt,xp);
-
-%ARD Matern 3/2
-gprMdl_ardM32_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
-[ypred_ardM32_M1_sqrt, std_ardM32_M1_sqrt] = predict(gprMdl_ardM32_M1_sqrt,xp);
-
-%ARD Matern 5/2
-gprMdl_ardM52_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
-[ypred_ardM52_M1_sqrt, std_ardM52_M1_sqrt] = predict(gprMdl_ardM52_M1_sqrt,xp);
-
-%ARD rational quadratic
-gprMdl_ardRQ_M1_sqrt = fitrgp(tpoints_M1, datapointsM1_standardized_sqrt, ...
-    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
-[ypred_ardRQ_M1_sqrt, std_ardRQ_M1_sqrt] = predict(gprMdl_ardRQ_M1_sqrt,xp);
-
 %% GP Models M2 (Log and Sqrt transforms)
 % Log transform models
 gprMdl_SE_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
@@ -243,21 +190,6 @@ gprMdl_M52_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
 gprMdl_RQ_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
     'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_RQ_M2_log, std_RQ_M2_log] = predict(gprMdl_RQ_M2_log,xp);
-gprMdl_ardSE_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
-    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardSE_M2_log, std_ardSE_M2_log] = predict(gprMdl_ardSE_M2_log,xp);
-gprMdl_ardExp_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
-    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardExp_M2_log, std_ardExp_M2_log] = predict(gprMdl_ardExp_M2_log,xp);
-gprMdl_ardM32_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
-    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
-[ypred_ardM32_M2_log, std_ardM32_M2_log] = predict(gprMdl_ardM32_M2_log,xp);
-gprMdl_ardM52_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
-    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
-[ypred_ardM52_M2_log, std_ardM52_M2_log] = predict(gprMdl_ardM52_M2_log,xp);
-gprMdl_ardRQ_M2_log = fitrgp(tpoints_M2, datapointsM2_standardized_log, ...
-    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
-[ypred_ardRQ_M2_log, std_ardRQ_M2_log] = predict(gprMdl_ardRQ_M2_log,xp);
 % Sqrt transform models
 gprMdl_SE_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
     'KernelFunction', 'squaredexponential', 'Standardize', false, optimArgs{:});
@@ -274,21 +206,6 @@ gprMdl_M52_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
 gprMdl_RQ_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
     'KernelFunction', 'rationalquadratic', 'Standardize', false, optimArgs{:});
 [ypred_RQ_M2_sqrt, std_RQ_M2_sqrt] = predict(gprMdl_RQ_M2_sqrt,xp);
-gprMdl_ardSE_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
-    'KernelFunction', 'ardsquaredexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardSE_M2_sqrt, std_ardSE_M2_sqrt] = predict(gprMdl_ardSE_M2_sqrt,xp);
-gprMdl_ardExp_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
-    'KernelFunction', 'ardexponential', 'Standardize', false, optimArgs{:});
-[ypred_ardExp_M2_sqrt, std_ardExp_M2_sqrt] = predict(gprMdl_ardExp_M2_sqrt,xp);
-gprMdl_ardM32_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
-    'KernelFunction', 'ardmatern32', 'Standardize', false, optimArgs{:});
-[ypred_ardM32_M2_sqrt, std_ardM32_M2_sqrt] = predict(gprMdl_ardM32_M2_sqrt,xp);
-gprMdl_ardM52_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
-    'KernelFunction', 'ardmatern52', 'Standardize', false, optimArgs{:});
-[ypred_ardM52_M2_sqrt, std_ardM52_M2_sqrt] = predict(gprMdl_ardM52_M2_sqrt,xp);
-gprMdl_ardRQ_M2_sqrt = fitrgp(tpoints_M2, datapointsM2_standardized_sqrt, ...
-    'KernelFunction', 'ardrationalquadratic', 'Standardize', false, optimArgs{:});
-[ypred_ardRQ_M2_sqrt, std_ardRQ_M2_sqrt] = predict(gprMdl_ardRQ_M2_sqrt,xp);
 
 %%To explore later %%
 %non-stationary kernels
@@ -350,11 +267,6 @@ pred_exp_log = reverseTransformLog(ypred_exp_M1_log, std_exp_M1_log);
 pred_M32_log = reverseTransformLog(ypred_M32_M1_log, std_M32_M1_log);
 pred_M52_log = reverseTransformLog(ypred_M52_M1_log, std_M52_M1_log);
 pred_RQ_log = reverseTransformLog(ypred_RQ_M1_log, std_RQ_M1_log);
-pred_ardSE_log = reverseTransformLog(ypred_ardSE_M1_log, std_ardSE_M1_log);
-pred_ardExp_log = reverseTransformLog(ypred_ardExp_M1_log, std_ardExp_M1_log);
-pred_ardM32_log = reverseTransformLog(ypred_ardM32_M1_log, std_ardM32_M1_log);
-pred_ardM52_log = reverseTransformLog(ypred_ardM52_M1_log, std_ardM52_M1_log);
-pred_ardRQ_log = reverseTransformLog(ypred_ardRQ_M1_log, std_ardRQ_M1_log);
 
 % Transform all predictions back to count space (sqrt transform)
 pred_SE_sqrt = reverseTransformSqrt(ypred_SE_M1_sqrt, std_SE_M1_sqrt);
@@ -362,11 +274,6 @@ pred_exp_sqrt = reverseTransformSqrt(ypred_exp_M1_sqrt, std_exp_M1_sqrt);
 pred_M32_sqrt = reverseTransformSqrt(ypred_M32_M1_sqrt, std_M32_M1_sqrt);
 pred_M52_sqrt = reverseTransformSqrt(ypred_M52_M1_sqrt, std_M52_M1_sqrt);
 pred_RQ_sqrt = reverseTransformSqrt(ypred_RQ_M1_sqrt, std_RQ_M1_sqrt);
-pred_ardSE_sqrt = reverseTransformSqrt(ypred_ardSE_M1_sqrt, std_ardSE_M1_sqrt);
-pred_ardExp_sqrt = reverseTransformSqrt(ypred_ardExp_M1_sqrt, std_ardExp_M1_sqrt);
-pred_ardM32_sqrt = reverseTransformSqrt(ypred_ardM32_M1_sqrt, std_ardM32_M1_sqrt);
-pred_ardM52_sqrt = reverseTransformSqrt(ypred_ardM52_M1_sqrt, std_ardM52_M1_sqrt);
-pred_ardRQ_sqrt = reverseTransformSqrt(ypred_ardRQ_M1_sqrt, std_ardRQ_M1_sqrt);
 
 % Transform M2 predictions back to count space
 pred_SE_log_M2 = reverseTransformLog_M2(ypred_SE_M2_log, std_SE_M2_log);
@@ -374,35 +281,22 @@ pred_exp_log_M2 = reverseTransformLog_M2(ypred_exp_M2_log, std_exp_M2_log);
 pred_M32_log_M2 = reverseTransformLog_M2(ypred_M32_M2_log, std_M32_M2_log);
 pred_M52_log_M2 = reverseTransformLog_M2(ypred_M52_M2_log, std_M52_M2_log);
 pred_RQ_log_M2 = reverseTransformLog_M2(ypred_RQ_M2_log, std_RQ_M2_log);
-pred_ardSE_log_M2 = reverseTransformLog_M2(ypred_ardSE_M2_log, std_ardSE_M2_log);
-pred_ardExp_log_M2 = reverseTransformLog_M2(ypred_ardExp_M2_log, std_ardExp_M2_log);
-pred_ardM32_log_M2 = reverseTransformLog_M2(ypred_ardM32_M2_log, std_ardM32_M2_log);
-pred_ardM52_log_M2 = reverseTransformLog_M2(ypred_ardM52_M2_log, std_ardM52_M2_log);
-pred_ardRQ_log_M2 = reverseTransformLog_M2(ypred_ardRQ_M2_log, std_ardRQ_M2_log);
 pred_SE_sqrt_M2 = reverseTransformSqrt_M2(ypred_SE_M2_sqrt, std_SE_M2_sqrt);
 pred_exp_sqrt_M2 = reverseTransformSqrt_M2(ypred_exp_M2_sqrt, std_exp_M2_sqrt);
 pred_M32_sqrt_M2 = reverseTransformSqrt_M2(ypred_M32_M2_sqrt, std_M32_M2_sqrt);
 pred_M52_sqrt_M2 = reverseTransformSqrt_M2(ypred_M52_M2_sqrt, std_M52_M2_sqrt);
 pred_RQ_sqrt_M2 = reverseTransformSqrt_M2(ypred_RQ_M2_sqrt, std_RQ_M2_sqrt);
-pred_ardSE_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardSE_M2_sqrt, std_ardSE_M2_sqrt);
-pred_ardExp_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardExp_M2_sqrt, std_ardExp_M2_sqrt);
-pred_ardM32_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardM32_M2_sqrt, std_ardM32_M2_sqrt);
-pred_ardM52_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardM52_M2_sqrt, std_ardM52_M2_sqrt);
-pred_ardRQ_sqrt_M2 = reverseTransformSqrt_M2(ypred_ardRQ_M2_sqrt, std_ardRQ_M2_sqrt);
 
-%%  Plot all GP models (M1: one figure with 10 tabs; M2: separate figure with 10 tabs)
+%%  Plot all GP models (M1: one figure with 5 tabs; M2: separate figure with 5 tabs)
 
-% M1: one figure with 10 tabs (each tab = one kernel, log + sqrt subplots)
-pred_log_M1 = {pred_SE_log, pred_exp_log, pred_M32_log, pred_M52_log, pred_RQ_log, ...
-    pred_ardSE_log, pred_ardExp_log, pred_ardM32_log, pred_ardM52_log, pred_ardRQ_log};
-pred_sqrt_M1 = {pred_SE_sqrt, pred_exp_sqrt, pred_M32_sqrt, pred_M52_sqrt, pred_RQ_sqrt, ...
-    pred_ardSE_sqrt, pred_ardExp_sqrt, pred_ardM32_sqrt, pred_ardM52_sqrt, pred_ardRQ_sqrt};
-kernelTabNames = {'Squared Exp', 'Exponential', 'Matern 3/2', 'Matern 5/2', 'Rational Quad', ...
-    'ARD SE', 'ARD Exp', 'ARD Matern 3/2', 'ARD Matern 5/2', 'ARD RQ'};
+% M1: one figure with 5 tabs (each tab = one kernel, log + sqrt subplots)
+pred_log_M1 = {pred_SE_log, pred_exp_log, pred_M32_log, pred_M52_log, pred_RQ_log};
+pred_sqrt_M1 = {pred_SE_sqrt, pred_exp_sqrt, pred_M32_sqrt, pred_M52_sqrt, pred_RQ_sqrt};
+kernelTabNames = {'Squared Exp', 'Exponential', 'Matern 3/2', 'Matern 5/2', 'Rational Quad'};
 
 figM1 = figure('Name', 'M1 GP Kernels', 'NumberTitle', 'off');
 tgM1 = uitabgroup(figM1);
-for k = 1:10
+for k = 1:5
     t = uitab(tgM1, 'Title', kernelTabNames{k});
     ax1 = axes('Parent', t, 'Position', [0.1 0.55 0.85 0.38]);
     plot(tpoints_M1, datapointsM1, 'b.', 'MarkerSize', 10);
@@ -429,15 +323,13 @@ for k = 1:10
     grid(ax2, 'on');
 end
 
-% M2: separate figure with 10 tabs (same structure)
-pred_log_M2 = {pred_SE_log_M2, pred_exp_log_M2, pred_M32_log_M2, pred_M52_log_M2, pred_RQ_log_M2, ...
-    pred_ardSE_log_M2, pred_ardExp_log_M2, pred_ardM32_log_M2, pred_ardM52_log_M2, pred_ardRQ_log_M2};
-pred_sqrt_M2 = {pred_SE_sqrt_M2, pred_exp_sqrt_M2, pred_M32_sqrt_M2, pred_M52_sqrt_M2, pred_RQ_sqrt_M2, ...
-    pred_ardSE_sqrt_M2, pred_ardExp_sqrt_M2, pred_ardM32_sqrt_M2, pred_ardM52_sqrt_M2, pred_ardRQ_sqrt_M2};
+% M2: separate figure with 5 tabs (same structure)
+pred_log_M2 = {pred_SE_log_M2, pred_exp_log_M2, pred_M32_log_M2, pred_M52_log_M2, pred_RQ_log_M2};
+pred_sqrt_M2 = {pred_SE_sqrt_M2, pred_exp_sqrt_M2, pred_M32_sqrt_M2, pred_M52_sqrt_M2, pred_RQ_sqrt_M2};
 
 figM2 = figure('Name', 'M2 GP Kernels', 'NumberTitle', 'off');
 tgM2 = uitabgroup(figM2);
-for k = 1:10
+for k = 1:5
     t = uitab(tgM2, 'Title', kernelTabNames{k});
     ax1 = axes('Parent', t, 'Position', [0.1 0.55 0.85 0.38]);
     plot(ax1, tpoints_M2, datapointsM2, 'b.', 'MarkerSize', 10);
@@ -490,12 +382,7 @@ models_log = {
     gprMdl_exp_M1_log, 'Exponential';
     gprMdl_M32_M1_log, 'Matern 3/2';
     gprMdl_M52_M1_log, 'Matern 5/2';
-    gprMdl_RQ_M1_log, 'Rational Quadratic';
-    gprMdl_ardSE_M1_log, 'ARD Squared Exponential';
-    gprMdl_ardExp_M1_log, 'ARD Exponential';
-    gprMdl_ardM32_M1_log, 'ARD Matern 3/2';
-    gprMdl_ardM52_M1_log, 'ARD Matern 5/2';
-    gprMdl_ardRQ_M1_log, 'ARD Rational Quadratic'
+    gprMdl_RQ_M1_log, 'Rational Quadratic'
 };
 
 % Initialize arrays to store metrics
@@ -549,12 +436,7 @@ models_sqrt = {
     gprMdl_exp_M1_sqrt, 'Exponential';
     gprMdl_M32_M1_sqrt, 'Matern 3/2';
     gprMdl_M52_M1_sqrt, 'Matern 5/2';
-    gprMdl_RQ_M1_sqrt, 'Rational Quadratic';
-    gprMdl_ardSE_M1_sqrt, 'ARD Squared Exponential';
-    gprMdl_ardExp_M1_sqrt, 'ARD Exponential';
-    gprMdl_ardM32_M1_sqrt, 'ARD Matern 3/2';
-    gprMdl_ardM52_M1_sqrt, 'ARD Matern 5/2';
-    gprMdl_ardRQ_M1_sqrt, 'ARD Rational Quadratic'
+    gprMdl_RQ_M1_sqrt, 'Rational Quadratic'
 };
 
 % Initialize arrays to store metrics
@@ -607,12 +489,7 @@ models_log_M2 = {
     gprMdl_exp_M2_log, 'Exponential';
     gprMdl_M32_M2_log, 'Matern 3/2';
     gprMdl_M52_M2_log, 'Matern 5/2';
-    gprMdl_RQ_M2_log, 'Rational Quadratic';
-    gprMdl_ardSE_M2_log, 'ARD Squared Exponential';
-    gprMdl_ardExp_M2_log, 'ARD Exponential';
-    gprMdl_ardM32_M2_log, 'ARD Matern 3/2';
-    gprMdl_ardM52_M2_log, 'ARD Matern 5/2';
-    gprMdl_ardRQ_M2_log, 'ARD Rational Quadratic'
+    gprMdl_RQ_M2_log, 'Rational Quadratic'
 };
 kernelNames_log_M2 = cell(numModels, 1);
 logLikelihoods_log_M2 = zeros(numModels, 1);
@@ -643,12 +520,7 @@ models_sqrt_M2 = {
     gprMdl_exp_M2_sqrt, 'Exponential';
     gprMdl_M32_M2_sqrt, 'Matern 3/2';
     gprMdl_M52_M2_sqrt, 'Matern 5/2';
-    gprMdl_RQ_M2_sqrt, 'Rational Quadratic';
-    gprMdl_ardSE_M2_sqrt, 'ARD Squared Exponential';
-    gprMdl_ardExp_M2_sqrt, 'ARD Exponential';
-    gprMdl_ardM32_M2_sqrt, 'ARD Matern 3/2';
-    gprMdl_ardM52_M2_sqrt, 'ARD Matern 5/2';
-    gprMdl_ardRQ_M2_sqrt, 'ARD Rational Quadratic'
+    gprMdl_RQ_M2_sqrt, 'Rational Quadratic'
 };
 kernelNames_sqrt_M2 = cell(numModels, 1);
 logLikelihoods_sqrt_M2 = zeros(numModels, 1);
