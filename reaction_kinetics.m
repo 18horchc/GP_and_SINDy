@@ -21,6 +21,9 @@ function [t, C] = reaction_kinetics(params, plot_results)
 %
 %   Note: Uses ode15s (stiff solver) due to large disparity in time scales.
 %
+%   Plotting: [Y] is scaled by 10^4 so its variation is visible on the same
+%   axis as [X] and [Z] (see scipython.com/.../solving-a-system-of-stiff-odes).
+%
 %   Example:
 %       [t, C] = reaction_kinetics();
 
@@ -59,14 +62,16 @@ function [t, C] = reaction_kinetics(params, plot_results)
     [t, C] = ode15s(robertson_ode, tspan, C0);
     
     % Plot results
+    % Scale [Y] by 10^4 so its variation is visible (y is O(1e-5) vs x,z O(0.2-1))
     if plot_results
+        YFAC = 4;   % plot 10^YFAC * y so y is visible (matches scipython example)
         figure;
         plot(t, C(:,1), '-r', 'LineWidth', 2); hold on;
-        plot(t, C(:,2), '-g', 'LineWidth', 2);
+        plot(t, 10^YFAC * C(:,2), '-g', 'LineWidth', 2);
         plot(t, C(:,3), '-b', 'LineWidth', 2);
         xlabel('Time');
-        ylabel('Concentration');
-        legend('x', 'y', 'z');
+        ylabel('Concentration (y scaled by 10^4)');
+        legend('x', sprintf('10^%d \\times y', YFAC), 'z', 'Location', 'best');
         title('Robertson Stiff Reaction System');
         xlim([0 50]);
         grid on;
