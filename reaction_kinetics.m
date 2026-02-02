@@ -1,30 +1,28 @@
 function [t, C] = reaction_kinetics(params, plot_results)
-%REACTION_KINETICS Simulates stiff chemical reaction kinetics A -> B -> C
+%REACTION_KINETICS Simulates the Robertson stiff chemical reaction system
+%
+%   The Robertson system is a classic stiff ODE test problem:
+%       dx/dt = -0.04*x + 10^4*y*z
+%       dy/dt =  0.04*x - 10^4*y*z - 3*10^7*y^2
+%       dz/dt =  3*10^7*y^2
 %
 %   [t, C] = reaction_kinetics()
-%       Uses default parameters and plots results
+%       Uses default parameters and plots results. C = [x, y, z].
 %
 %   [t, C] = reaction_kinetics(params)
 %       Uses custom parameters specified in struct:
-%           params.k1    - fast reaction rate A->B (default: 1e3)
-%           params.k2    - slow reaction rate B->C (default: 1e-2)
-%           params.C0    - initial concentrations [A0, B0, C0] (default: [1, 0, 0])
-%           params.tspan - time span [t0, tf] (default: [0, 100])
+%           params.x0    - initial x (default: 1)
+%           params.y0    - initial y (default: 0)
+%           params.z0    - initial z (default: 0)
+%           params.tspan - time span [t0, tf] (default: [0, 50])
 %
 %   [t, C] = reaction_kinetics(params, plot_results)
 %       Set plot_results = false to suppress plotting
 %
-%   Model (stiff system):
-%       dA/dt = -k1 * A          (fast decay)
-%       dB/dt = k1 * A - k2 * B  (intermediate)
-%       dC/dt = k2 * B           (slow formation)
-%
-%   Note: Uses ode15s for stiff systems due to large difference in k1/k2
+%   Note: Uses ode15s (stiff solver) due to large disparity in time scales.
 %
 %   Example:
 %       [t, C] = reaction_kinetics();
-%       params.k1 = 1e4; params.k2 = 1e-1;
-%       [t, C] = reaction_kinetics(params, true);
 
     % Default parameters
     if nargin < 1 || isempty(params)
@@ -35,24 +33,30 @@ function [t, C] = reaction_kinetics(params, plot_results)
     end
     
     % Set defaults for missing fields
-    if ~isfield(params, 'k1'),    params.k1 = 1e3;         end
-    if ~isfield(params, 'k2'),    params.k2 = 1e-2;        end
-    if ~isfield(params, 'C0'),    params.C0 = [1.0, 0, 0]; end
-    if ~isfield(params, 'tspan'), params.tspan = [0 100];  end
+    if ~isfield(params, 'x0'),    params.x0 = 1;           end
+    if ~isfield(params, 'y0'),    params.y0 = 0;           end
+    if ~isfield(params, 'z0'),    params.z0 = 0;           end
+    if ~isfield(params, 'tspan'), params.tspan = [0 50];   end
     
     % Extract parameters
-    k1 = params.k1;
-    k2 = params.k2;
-    C0 = params.C0;
+    x0 = params.x0;
+    y0 = params.y0;
+    z0 = params.z0;
     tspan = params.tspan;
     
-    % Define stiff reaction kinetics ODE system
-    stiff_ode = @(t, C) [-k1 * C(1);              % dA/dt
-                          k1 * C(1) - k2 * C(2);  % dB/dt
-                          k2 * C(2)];             % dC/dt
+    % Initial conditions: [x, y, z]
+    C0 = [x0; y0; z0];
+    
+    % Robertson system ODE:
+    % dx/dt = -0.04*x + 10^4*y*z
+    % dy/dt =  0.04*x - 10^4*y*z - 3*10^7*y^2
+    % dz/dt =  3*10^7*y^2
+    robertson_ode = @(t, C) [-0.04*C(1) + 1e4*C(2)*C(3);           % dx/dt
+                              0.04*C(1) - 1e4*C(2)*C(3) - 3e7*C(2)^2;  % dy/dt
+                              3e7*C(2)^2];                         % dz/dt
     
     % Solve using ode15s (stiff solver)
-    [t, C] = ode15s(stiff_ode, tspan, C0);
+    [t, C] = ode15s(robertson_ode, tspan, C0);
     
     % Plot results
     if plot_results
@@ -62,15 +66,16 @@ function [t, C] = reaction_kinetics(params, plot_results)
         plot(t, C(:,3), '-b', 'LineWidth', 2);
         xlabel('Time');
         ylabel('Concentration');
-        legend('A', 'B', 'C');
-        title('Stiff Reaction Kinetics: A \rightarrow B \rightarrow C');
+        legend('x', 'y', 'z');
+        title('Robertson Stiff Reaction System');
+        xlim([0 50]);
         grid on;
         
         % Display parameters
-        fprintf('Reaction Kinetics Parameters:\n');
-        fprintf('  Fast rate k1 (A->B) = %.2e\n', k1);
-        fprintf('  Slow rate k2 (B->C) = %.2e\n', k2);
-        fprintf('  Stiffness ratio k1/k2 = %.2e\n', k1/k2);
-        fprintf('  Initial concentrations: A0=%.2f, B0=%.2f, C0=%.2f\n', C0(1), C0(2), C0(3));
+        fprintf('Robertson System Parameters:\n');
+        fprintf('  Initial conditions: x(0)=%.2f, y(0)=%.2f, z(0)=%.2f\n', x0, y0, z0);
+        fprintf('  Equations: dx/dt = -0.04*x + 10^4*y*z\n');
+        fprintf('             dy/dt = 0.04*x - 10^4*y*z - 3*10^7*y^2\n');
+        fprintf('             dz/dt = 3*10^7*y^2\n');
     end
 end

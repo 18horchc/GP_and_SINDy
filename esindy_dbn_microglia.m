@@ -79,7 +79,7 @@ function [t, M1, M2] = esindy_dbn_microglia(params, plot_results)
         ylabel('cells/mm^2', 'FontSize', 14);
         title('ESINDy+DBN Model: Microglial Cell Dynamics', 'FontSize', 14);
         legend('M1', 'M2', 'Location', 'best');
-        xlim([0 t_end]); 
+        xlim([0 50]); 
         ylim([0 1500]);
         grid on;
         set(gca, 'FontSize', 12);

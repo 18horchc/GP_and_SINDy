@@ -80,7 +80,7 @@ function [t, M1, M2, M_eq] = sindy_mcmc_microglia(params, plot_results)
         ylabel('cells/mm^2', 'FontSize', 14);
         title('SINDy+MCMC Model: Microglial Cell Dynamics', 'FontSize', 14);
         legend('M1', 'M2', 'Location', 'best');
-        xlim([tspan(1) tspan(2)]); 
+        xlim([0 50]); 
         ylim([0 1500]);
         grid on;
         set(gca, 'FontSize', 12);

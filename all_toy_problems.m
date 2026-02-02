@@ -10,7 +10,7 @@
 %   4. SINDy+MCMC Microglia     - sindy_mcmc_microglia.m
 %   5. ESINDy+DBN Microglia     - esindy_dbn_microglia.m
 %
-% Author: Your Name
+% Author: Cordelia Horch
 % Date: 2026
 
 clear; clc; close all;
@@ -23,7 +23,7 @@ run_lotka_volterra = true;
 run_reaction_kinetics = true;
 run_sindy_mcmc = true;
 run_esindy_dbn = true;
-run_comparison = true;  % Side-by-side comparison of microglia models
+run_comparison = false;  % Side-by-side comparison of microglia models
 
 %% ========================================================================
 %  1. LOGISTIC GROWTH
