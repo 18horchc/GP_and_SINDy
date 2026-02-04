@@ -19,8 +19,9 @@ This keeps experiments ordered, easy to extend, and clear in the big picture.
 | Script | Scope |
 |--------|--------|
 | **run_exp_01_regular_0noise.m** | Ground truth; regular sampling; 0% noise; N = 5, 10, 25, 50; all 5 kernels. |
+| **run_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise on sampled points (sigma = 0.01 * std(y_gt)). |
 
-*(Add new rows as you add steps, e.g. 02 = irregular 0% noise, 03 = regular + noise, etc.)*
+*(Add new rows as you add steps, e.g. 03 = irregular 0% noise, 04 = regular 5% noise, etc.)*
 
 ## How to run
 
