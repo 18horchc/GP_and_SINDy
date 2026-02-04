@@ -7,7 +7,7 @@
 %   - Ground truth: 500 pts on [0, 50] from LV (two states: prey, predator)
 %   - Sampling: REGULAR only, 0% noise
 %   - Sparsity N: 5, 10, 25, 50
-%   - Kernels: all 5 (Squared Exp, Matern 1/2, 3/2, 5/2, Rational Quadratic)
+%   - Kernels: 5 built-in + custom periodic (6 total)
 %   - One GP per state (prey and predator); same metrics as logistic design
 %
 % Output: Three metric tables (Kernel, N, State, ...); RMSE vs N figure; one figure per kernel
@@ -25,10 +25,11 @@ addpath(fullfile(script_dir, '..'));
 fprintf('Ground truth LV: %d points on [0, 50]. Prey [%.2f, %.2f], Predator [%.2f, %.2f]\n', ...
     length(t_gt), min(prey_gt), max(prey_gt), min(pred_gt), max(pred_gt));
 
-%% 2. Design
+%% 2. Design (5 built-in + custom periodic kernel)
 N_list = [5, 10, 25, 50];
-kernel_list = {'squaredexponential', 'exponential', 'matern32', 'matern52', 'rationalquadratic'};
-kernel_labels = {'SqExp', 'Matern 1/2', 'Matern 3/2', 'Matern 5/2', 'RatQuad'};
+kernel_list = {'squaredexponential', 'exponential', 'matern32', 'matern52', 'rationalquadratic', @periodicKernel};
+kernel_labels = {'SqExp', 'Matern 1/2', 'Matern 3/2', 'Matern 5/2', 'RatQuad', 'Periodic'};
+n_anticipated_cycles = 3;  % for periodic kernel initial period
 
 %% 3. Loop: each N → sample regularly, 0% noise; each kernel → fit GP for prey and predator, compute metrics
 results_point = [];
@@ -51,13 +52,29 @@ for in = 1:length(N_list)
     prey_obs_by_N{in} = prey_obs;
     pred_obs_by_N{in} = pred_obs;
 
+    % Initial parameters for periodic kernel (same period/lengthScale for both states)
+    t_range = max(t_obs) - min(t_obs);
+    period0 = t_range / n_anticipated_cycles;
+    lengthScale0 = period0 / 4;
+
     for ik = 1:length(kernel_list)
         kern = kernel_list{ik};
+        is_periodic = isa(kern, 'function_handle');
         try
+            if is_periodic
+                theta0_prey = [std(prey_obs), period0, lengthScale0];
+                theta0_pred = [std(pred_obs), period0, lengthScale0];
+            end
             % GP for prey
-            gpr_prey = fitrgp(t_obs, prey_obs, ...
-                'KernelFunction', kern, 'BasisFunction', 'constant', ...
-                'FitMethod', 'exact', 'PredictMethod', 'exact', 'Standardize', true);
+            if is_periodic
+                gpr_prey = fitrgp(t_obs, prey_obs, ...
+                    'KernelFunction', @periodicKernel, 'KernelParameters', theta0_prey, ...
+                    'BasisFunction', 'constant', 'FitMethod', 'exact', 'PredictMethod', 'exact', 'Standardize', true);
+            else
+                gpr_prey = fitrgp(t_obs, prey_obs, ...
+                    'KernelFunction', kern, 'BasisFunction', 'constant', ...
+                    'FitMethod', 'exact', 'PredictMethod', 'exact', 'Standardize', true);
+            end
             [ymu_prey, ystd_prey, ~] = predict(gpr_prey, t_gt);
             pred_ymu_prey{ik, in} = ymu_prey;
             pred_ystd_prey{ik, in} = ystd_prey;
@@ -71,9 +88,15 @@ for in = 1:length(N_list)
             results_calib = [results_calib; {kernel_labels{ik}, N, 'Prey', smse_p, cov_p, nlml_p}];
 
             % GP for predator
-            gpr_pred = fitrgp(t_obs, pred_obs, ...
-                'KernelFunction', kern, 'BasisFunction', 'constant', ...
-                'FitMethod', 'exact', 'PredictMethod', 'exact', 'Standardize', true);
+            if is_periodic
+                gpr_pred = fitrgp(t_obs, pred_obs, ...
+                    'KernelFunction', @periodicKernel, 'KernelParameters', theta0_pred, ...
+                    'BasisFunction', 'constant', 'FitMethod', 'exact', 'PredictMethod', 'exact', 'Standardize', true);
+            else
+                gpr_pred = fitrgp(t_obs, pred_obs, ...
+                    'KernelFunction', kern, 'BasisFunction', 'constant', ...
+                    'FitMethod', 'exact', 'PredictMethod', 'exact', 'Standardize', true);
+            end
             [ymu_pred, ystd_pred, ~] = predict(gpr_pred, t_gt);
             pred_ymu_pred{ik, in} = ymu_pred;
             pred_ystd_pred{ik, in} = ystd_pred;
@@ -86,7 +109,7 @@ for in = 1:length(N_list)
             results_prob  = [results_prob;  {kernel_labels{ik}, N, 'Predator', nlpd_y, msll_y, crps_y}];
             results_calib = [results_calib; {kernel_labels{ik}, N, 'Predator', smse_y, cov_y, nlml_y}];
         catch me
-            warning('Failed: N=%d, kernel=%s. %s', N, kern, me.message);
+            warning('Failed: N=%d, kernel=%s. %s', N, kernel_labels{ik}, me.message);
             results_point = [results_point; {kernel_labels{ik}, N, 'Prey', NaN, NaN, NaN}; {kernel_labels{ik}, N, 'Predator', NaN, NaN, NaN}];
             results_prob  = [results_prob;  {kernel_labels{ik}, N, 'Prey', NaN, NaN, NaN}; {kernel_labels{ik}, N, 'Predator', NaN, NaN, NaN}];
             results_calib = [results_calib; {kernel_labels{ik}, N, 'Prey', NaN, NaN, NaN}; {kernel_labels{ik}, N, 'Predator', NaN, NaN, NaN}];

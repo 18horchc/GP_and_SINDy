@@ -189,6 +189,17 @@ elseif contains(kname, 'rational')
             K(j,i) = K(i,j);
         end
     end
+elseif contains(kname, 'periodic') || (contains(kname, 'custom') && numel(params) == 3)
+    % Periodic: theta(1)=sigmaF, theta(2)=period, theta(3)=lengthScale
+    sigmaF = params(1); p = params(2); l = params(3);
+    for i = 1:n
+        for j = i:n
+            dist = abs(X(i,:) - X(j,:));
+            if numel(dist) > 1, dist = sqrt(sum(dist.^2)); end
+            K(i,j) = sigmaF^2 * exp(-2 * sin(pi * dist / p).^2 / l^2);
+            K(j,i) = K(i,j);
+        end
+    end
 else
     error('metric_helpers:kernel', 'Unsupported kernel: %s', kname);
 end

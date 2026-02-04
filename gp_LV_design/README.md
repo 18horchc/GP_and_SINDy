@@ -6,6 +6,7 @@ GP experiments on the **Lotka-Volterra** predator–prey model, mirroring the st
 
 - **lotka_volterra_model.m** — LV ODE model (same as used by all_toy_problems). Moved here from project root.
 - **ground_truth_LV.m** — High-res LV curves (default 500 pts on [0, 50]) for prey and predator. Calls `lotka_volterra_model(params, false)` and interpolates.
+- **periodicKernel.m** — Custom periodic kernel for fitrgp; used by LV_exp_01 (initial period = t_range/3, length scale = period/4, sigmaF = std(Y)).
 - **metric_helpers.m** — Lives in the **project root** (`GP_and_SINDy/metric_helpers.m`). Runners use `addpath('..')` to access it.
 
 ## Naming convention
