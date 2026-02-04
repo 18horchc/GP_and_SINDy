@@ -44,4 +44,4 @@ run_exp_01_regular_0noise
 ## Shared code
 
 - **ground_truth_logistic.m** — Returns high-res logistic curve (default 500 pts on [0, 50]). Used by all experiments.
-- **metric_helpers.m** — Computes the three metric groups: point-estimate (RMSE, MAE, R²), probabilistic (NLPD, MSLL, CRPS), and calibration (sMSE, Coverage, NLML). Used by experiment runners.
+- **metric_helpers.m** — Lives in the **project root** (`GP_and_SINDy/metric_helpers.m`) and is shared with `gp_LV_design`. Computes point-estimate (RMSE, MAE, R²), probabilistic (NLPD, MSLL, CRPS), and calibration (sMSE, Coverage, NLML). Runners use `addpath('..')` to access it.

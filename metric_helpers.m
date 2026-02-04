@@ -1,6 +1,8 @@
 function varargout = metric_helpers(metric_name, varargin)
 % METRIC_HELPERS  Compute GP metrics per PDF "GP Toy Problem Project - Metrics".
 %
+% Shared by gp_logistic_design and gp_LV_design. Keep in project root (GP_and_SINDy).
+%
 % Point-estimate:
 %   [rmse, mae, r2] = metric_helpers('point_estimate', y_true, y_pred)
 %
@@ -45,7 +47,7 @@ switch lower(metric_name)
         log_p = -0.5*log(2*pi) - log(ystd) - 0.5*((y_true - ymu)./ystd).^2;
         nlpd = -sum(log_p);
         %Might be overcomplicating above calculation? Could use:
-        % -sum(normlogpdf(y_true, ymu, sqrt(ystd))); 
+        % -sum(normlogpdf(y_true, ymu, sqrt(ystd)));
 
 
         % MSLL = (1/n)*sum [ -log p(y_*^i|GP) + log p(y_*^i|train_data) ]
