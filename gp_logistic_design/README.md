@@ -21,8 +21,10 @@ This keeps experiments ordered, easy to extend, and clear in the big picture.
 | **run_exp_01_regular_0noise.m** | Ground truth; regular sampling; 0% noise; N = 5, 10, 25, 50; all 5 kernels. |
 | **run_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise on sampled points (sigma = 0.01 * std(y_gt)). |
 | **run_exp_03_regular_5noise.m** | Same as 02 with 5% Gaussian noise (sigma = 0.05 * std(y_gt)). |
+| **run_exp_04_regular_10noise.m** | Same as 03 with 10% Gaussian noise (sigma = 0.10 * std(y_gt)). |
+| **run_exp_05_regular_20noise.m** | Same as 04 with 20% Gaussian noise (sigma = 0.20 * std(y_gt)). |
 
-*(Add new rows as you add steps, e.g. 04 = irregular 0% noise, 05 = regular 10% noise, etc.)*
+*(Add new rows as you add steps, e.g. 06 = irregular 0% noise, etc.)*
 
 ## How to run
 
