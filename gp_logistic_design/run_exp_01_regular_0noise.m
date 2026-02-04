@@ -12,7 +12,8 @@
 %
 % Naming: run_exp_NN_<sampling>_<noise>.m — NN = experiment number, build on as we add steps.
 %
-% Output: table Kernel, N, RMSE, MaxError; figure RMSE vs N by kernel;
+% Output: Three metric tables (Point-Estimate, Probabilistic, Calibration);
+%         figure RMSE vs N by kernel;
 %         one figure per kernel with 4 subplots (N=5,10,25,50): points, ground truth, GP mean + 95%% band.
 
 clear; clc; close all;
@@ -32,9 +33,11 @@ N_list = [5, 10, 25, 50];
 kernel_list = {'squaredexponential', 'exponential', 'matern32', 'matern52', 'rationalquadratic'};
 kernel_labels = {'SqExp', 'Matern 1/2', 'Matern 3/2', 'Matern 5/2', 'RatQuad'};
 
-%% 3. Loop: for each N, sample regularly with 0% noise; for each kernel, fit GP and compute RMSE
+%% 3. Loop: for each N, sample regularly with 0% noise; for each kernel, fit GP and compute all metrics
 % Store predictions and observed points for later plotting (GP curves vs ground truth)
-results = [];
+results_point = [];
+results_prob = [];
+results_calib = [];
 pred_ymu = cell(length(kernel_list), length(N_list));   % pred_ymu{ik, in}
 pred_ystd = cell(length(kernel_list), length(N_list));
 t_obs_by_N = cell(1, length(N_list));
@@ -56,34 +59,56 @@ for in = 1:length(N_list)
                 'BasisFunction', 'constant', ...
                 'FitMethod', 'exact', ...
                 'PredictMethod', 'exact', ...
-                'Standardize', true);
+                'Standardize', true); %Think about if I need/want this
 
             [ymu, ystd, ~] = predict(gpr, t_gt);
-            rmse = sqrt(mean((ymu - y_gt).^2));
-            maxerr = max(abs(ymu - y_gt));
-
-            results = [results; {kernel_labels{ik}, N, rmse, maxerr}];
             pred_ymu{ik, in} = ymu;
-            pred_ystd{ik, in} = ystd;
+            pred_ystd{ik, in} = ystd; 
+            % ystd values returned by predict are the standard deviations of 
+            % the predicted response distribution at the new points, which 
+            % accounts for both the mean prediction uncertainty and the 
+            % observation noise
+
+            % Point-estimate metrics: RMSE, MAE, R²
+            [rmse, mae, r2] = metric_helpers('point_estimate', y_gt, ymu);
+            results_point = [results_point; {kernel_labels{ik}, N, rmse, mae, r2}];
+
+            % Probabilistic metrics: NLPD, MSLL, CRPS
+            [nlpd, msll, crps] = metric_helpers('probabilistic', y_gt, ymu, ystd, y_obs);
+            results_prob = [results_prob; {kernel_labels{ik}, N, nlpd, msll, crps}];
+
+            % Calibration & robustness: sMSE, Coverage, NLML
+            [smse, coverage, nlml] = metric_helpers('calibration', y_gt, ymu, ystd, y_obs, gpr);
+            results_calib = [results_calib; {kernel_labels{ik}, N, smse, coverage, nlml}];
         catch me
             warning('Failed: N=%d, kernel=%s. %s', N, kern, me.message);
-            results = [results; {kernel_labels{ik}, N, NaN, NaN}];
+            results_point = [results_point; {kernel_labels{ik}, N, NaN, NaN, NaN}];
+            results_prob = [results_prob; {kernel_labels{ik}, N, NaN, NaN, NaN}];
+            results_calib = [results_calib; {kernel_labels{ik}, N, NaN, NaN, NaN}];
             pred_ymu{ik, in} = nan(size(t_gt));
             pred_ystd{ik, in} = nan(size(t_gt));
         end
     end
 end
 
-%% 4. Table and display
-T = cell2table(results, 'VariableNames', {'Kernel', 'N', 'RMSE', 'MaxError'});
-disp(T);
+%% 4. Build and display three metric tables
+T_point = cell2table(results_point, 'VariableNames', {'Kernel', 'N', 'RMSE', 'MAE', 'R2'});
+T_prob = cell2table(results_prob, 'VariableNames', {'Kernel', 'N', 'NLPD', 'MSLL', 'CRPS'});
+T_calib = cell2table(results_calib, 'VariableNames', {'Kernel', 'N', 'sMSE', 'Coverage', 'NLML'});
+
+fprintf('--- Point-Estimate Metrics (Accuracy) ---\n');
+disp(T_point);
+fprintf('--- Probabilistic Metrics (Uncertainty Quality) ---\n');
+disp(T_prob);
+fprintf('--- Calibration & Robustness Metrics ---\n');
+disp(T_calib);
 
 %% 5. Simple plot: RMSE vs N, one line per kernel
 figure;
 hold on;
 for ik = 1:length(kernel_labels)
-    idx = strcmp(T.Kernel, kernel_labels{ik});
-    plot(T.N(idx), T.RMSE(idx), '-o', 'LineWidth', 1.5, 'DisplayName', kernel_labels{ik});
+    idx = strcmp(T_point.Kernel, kernel_labels{ik});
+    plot(T_point.N(idx), T_point.RMSE(idx), '-o', 'LineWidth', 1.5, 'DisplayName', kernel_labels{ik});
 end
 xlabel('Number of points (N)');
 ylabel('RMSE');
@@ -128,7 +153,9 @@ for ik = 1:length(kernel_labels)
 end
 
 %% 7. Save (optional)
-% save(fullfile(script_dir, 'results_exp_01_regular_0noise.mat'), 'T', 't_gt', 'y_gt');
-% writetable(T, fullfile(script_dir, 'results_exp_01_regular_0noise.csv'));
+% save(fullfile(script_dir, 'results_exp_01_regular_0noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'y_gt');
+% writetable(T_point, fullfile(script_dir, 'results_exp_01_point_metrics.csv'));
+% writetable(T_prob, fullfile(script_dir, 'results_exp_01_prob_metrics.csv'));
+% writetable(T_calib, fullfile(script_dir, 'results_exp_01_calib_metrics.csv'));
 
-fprintf('Done. Total runs: %d\n', height(T));
+fprintf('Done. Total runs: %d\n', height(T_point));
