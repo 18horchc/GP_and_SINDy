@@ -16,7 +16,11 @@ GP experiments on the **Robertson stiff reaction kinetics** system (3 states: X,
 
 | Script | Scope |
 |--------|--------|
-| **kin_exp_01_regular_0noise.m** | Ground truth kinetics; regular sampling; 0% noise; N = 5, 10, 25, 50; 5 kernels (SqExp, Matern 1/2, 3/2, 5/2, RatQuad); one GP per state (X, Y, Z). |
+| **kin_exp_01_regular_0noise.m** | Ground truth kinetics; regular sampling; 0% noise; N = 5, 10, 25, 50; 5 kernels; one GP per state (X, Y, Z). |
+| **kin_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise (sigma = 0.01×std per state); rng(42) for reproducibility. |
+| **kin_exp_03_regular_5noise.m** | Same as 02 with 5% Gaussian noise (sigma = 0.05×std per state). |
+| **kin_exp_04_regular_10noise.m** | Same as 03 with 10% Gaussian noise (sigma = 0.10×std per state). |
+| **kin_exp_05_regular_20noise.m** | Same as 04 with 20% Gaussian noise (sigma = 0.20×std per state). |
 
 Tables include a **State** column (X / Y / Z). Figures: RMSE vs N (3 subplots for X, Y, Z); one figure per kernel with 3×4 subplots (rows: X, Y, Z; cols: N = 5, 10, 25, 50).
 
