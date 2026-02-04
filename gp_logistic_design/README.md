@@ -4,7 +4,7 @@ Experiments for the **GP-on-logistic-growth** design (see [GP_Logistic_Experimen
 
 ## Naming convention
 
-- **Runner scripts:** `run_exp_NN_<scope>.m`  
+- **Runner scripts:** `log_exp_NN_<scope>.m`  
   - `NN` = two-digit experiment number (01, 02, 03, …).  
   - `<scope>` = short description of what varies in this run (e.g. `regular_0noise`, `irregular_0noise`, `regular_noise`).
 
@@ -18,11 +18,11 @@ This keeps experiments ordered, easy to extend, and clear in the big picture.
 
 | Script | Scope |
 |--------|--------|
-| **run_exp_01_regular_0noise.m** | Ground truth; regular sampling; 0% noise; N = 5, 10, 25, 50; all 5 kernels. |
-| **run_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise on sampled points (sigma = 0.01 * std(y_gt)). |
-| **run_exp_03_regular_5noise.m** | Same as 02 with 5% Gaussian noise (sigma = 0.05 * std(y_gt)). |
-| **run_exp_04_regular_10noise.m** | Same as 03 with 10% Gaussian noise (sigma = 0.10 * std(y_gt)). |
-| **run_exp_05_regular_20noise.m** | Same as 04 with 20% Gaussian noise (sigma = 0.20 * std(y_gt)). |
+| **log_exp_01_regular_0noise.m** | Ground truth; regular sampling; 0% noise; N = 5, 10, 25, 50; all 5 kernels. |
+| **log_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise on sampled points (sigma = 0.01 * std(y_gt)). |
+| **log_exp_03_regular_5noise.m** | Same as 02 with 5% Gaussian noise (sigma = 0.05 * std(y_gt)). |
+| **log_exp_04_regular_10noise.m** | Same as 03 with 10% Gaussian noise (sigma = 0.10 * std(y_gt)). |
+| **log_exp_05_regular_20noise.m** | Same as 04 with 20% Gaussian noise (sigma = 0.20 * std(y_gt)). |
 
 *(Add new rows as you add steps, e.g. 06 = irregular 0% noise, etc.)*
 
@@ -31,17 +31,18 @@ This keeps experiments ordered, easy to extend, and clear in the big picture.
 From the **project root** `GP_and_SINDy`:
 
 ```matlab
-run('gp_logistic_design/run_exp_01_regular_0noise.m')
+run('gp_logistic_design/log_exp_01_regular_0noise.m')
 ```
 
 Or from this folder (parent is added to path automatically):
 
 ```matlab
 cd('gp_logistic_design')
-run_exp_01_regular_0noise
+log_exp_01_regular_0noise
 ```
 
-## Shared code
+## Shared code (in this folder)
 
+- **logistic_growth.m** — Logistic ODE model (same as used by all_toy_problems). Moved here from project root.
 - **ground_truth_logistic.m** — Returns high-res logistic curve (default 500 pts on [0, 50]). Used by all experiments.
-- **metric_helpers.m** — Lives in the **project root** (`GP_and_SINDy/metric_helpers.m`) and is shared with `gp_LV_design`. Computes point-estimate (RMSE, MAE, R²), probabilistic (NLPD, MSLL, CRPS), and calibration (sMSE, Coverage, NLML). Runners use `addpath('..')` to access it.
+- **metric_helpers.m** — Lives in the **project root** (`GP_and_SINDy/metric_helpers.m`) and is shared with `gp_LV_design`. Runners use `addpath('..')` to access it.

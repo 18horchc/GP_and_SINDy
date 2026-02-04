@@ -10,7 +10,7 @@
 %   - Kernels: all 5 (Squared Exp, Matern 1/2, 3/2, 5/2, Rational Quadratic)
 %   - Optimization: default (no OptimizeHyperparameters)
 %
-% Naming: run_exp_NN_<sampling>_<noise>.m — NN = experiment number, build on as we add steps.
+% Naming: log_exp_NN_<sampling>_<noise>.m — NN = experiment number, build on as we add steps.
 %
 % Output: Three metric tables (Point-Estimate, Probabilistic, Calibration);
 %         figure RMSE vs N by kernel;
@@ -18,7 +18,7 @@
 
 clear; clc; close all;
 
-% Ensure this folder and parent (for logistic_growth) are on the path
+% Ensure this folder (logistic_growth, ground_truth_logistic) and parent (metric_helpers) are on the path
 script_dir = fileparts(mfilename('fullpath'));
 addpath(script_dir);
 addpath(fullfile(script_dir, '..'));

@@ -1,16 +1,16 @@
-%% GP Logistic Experiment 05: Regular sampling, 20% noise, varying N and kernel
+%% GP Logistic Experiment 04: Regular sampling, 10% noise, varying N and kernel
 %
 % Part of the GP-on-logistic-growth experimental design (see GP_Logistic_Experimental_Design_Plan.md).
 %
 % Scope:
 %   - Ground truth: 500 pts on [0, 50] from logistic growth
 %   - Sampling: REGULAR only
-%   - Noise: 20% Gaussian (sigma = 0.20 * std(y_gt))
+%   - Noise: 10% Gaussian (sigma = 0.10 * std(y_gt))
 %   - Sparsity N: 5, 10, 25, 50
 %   - Kernels: all 5 (Squared Exp, Matern 1/2, 3/2, 5/2, Rational Quadratic)
 %   - Optimization: default (no OptimizeHyperparameters)
 %
-% Naming: run_exp_NN_<sampling>_<noise>.m — NN = experiment number, build on as we add steps.
+% Naming: log_exp_NN_<sampling>_<noise>.m — NN = experiment number, build on as we add steps.
 %
 % Output: Three metric tables (Point-Estimate, Probabilistic, Calibration);
 %         figure RMSE vs N by kernel;
@@ -18,7 +18,7 @@
 
 clear; clc; close all;
 
-% Ensure this folder and parent (for logistic_growth) are on the path
+% Ensure this folder (logistic_growth, ground_truth_logistic) and parent (metric_helpers) are on the path
 script_dir = fileparts(mfilename('fullpath'));
 addpath(script_dir);
 addpath(fullfile(script_dir, '..'));
@@ -33,11 +33,11 @@ N_list = [5, 10, 25, 50];
 kernel_list = {'squaredexponential', 'exponential', 'matern32', 'matern52', 'rationalquadratic'};
 kernel_labels = {'SqExp', 'Matern 1/2', 'Matern 3/2', 'Matern 5/2', 'RatQuad'};
 
-% 20% noise: sigma = 0.20 * std(ground truth), per design plan
-noise_pct = 0.20;
+% 10% noise: sigma = 0.10 * std(ground truth), per design plan
+noise_pct = 0.10;
 sigma_noise = noise_pct * std(y_gt);
 
-%% 3. Loop: for each N, sample regularly with 20% noise; for each kernel, fit GP and compute all metrics
+%% 3. Loop: for each N, sample regularly with 10% noise; for each kernel, fit GP and compute all metrics
 % Store predictions and observed points for later plotting (GP curves vs ground truth)
 results_point = [];
 results_prob = [];
@@ -53,7 +53,7 @@ for in = 1:length(N_list)
     % Regular sampling: N even intervals including 0 and 50
     t_obs = linspace(0, 50, N)';
     y_obs = interp1(t_gt, y_gt, t_obs, 'linear', 'extrap');
-    % Add 20% Gaussian noise
+    % Add 10% Gaussian noise
     y_obs = y_obs + sigma_noise * randn(size(y_obs));
     t_obs_by_N{in} = t_obs;
     y_obs_by_N{in} = y_obs;
@@ -119,14 +119,14 @@ for ik = 1:length(kernel_labels)
 end
 xlabel('Number of points (N)');
 ylabel('RMSE');
-title('GP Logistic Exp 05: Regular sampling, 20% noise');
+title('GP Logistic Exp 04: Regular sampling, 10% noise');
 legend('Location', 'best');
 grid on;
 set(gca, 'XTick', N_list);
 
 %% 6. One figure per kernel: 4 subplots (N = 5, 10, 25, 50), each with points, ground truth, GP mean and 95% band
 for ik = 1:length(kernel_labels)
-    figure('Name', sprintf('Exp 05: %s', kernel_labels{ik}));
+    figure('Name', sprintf('Exp 04: %s', kernel_labels{ik}));
     for in = 1:length(N_list)
         subplot(2, 2, in);
         N = N_list(in);
@@ -156,13 +156,13 @@ for ik = 1:length(kernel_labels)
         grid on;
         xlim([0 50]);
     end
-    sgtitle(sprintf('GP Logistic Exp 05: %s — Regular sampling, 20%% noise', kernel_labels{ik}));
+    sgtitle(sprintf('GP Logistic Exp 04: %s — Regular sampling, 10%% noise', kernel_labels{ik}));
 end
 
 %% 7. Save (optional)
-% save(fullfile(script_dir, 'results_exp_05_regular_20noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'y_gt');
-% writetable(T_point, fullfile(script_dir, 'results_exp_05_point_metrics.csv'));
-% writetable(T_prob, fullfile(script_dir, 'results_exp_05_prob_metrics.csv'));
-% writetable(T_calib, fullfile(script_dir, 'results_exp_05_calib_metrics.csv'));
+% save(fullfile(script_dir, 'results_exp_04_regular_10noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'y_gt');
+% writetable(T_point, fullfile(script_dir, 'results_exp_04_point_metrics.csv'));
+% writetable(T_prob, fullfile(script_dir, 'results_exp_04_prob_metrics.csv'));
+% writetable(T_calib, fullfile(script_dir, 'results_exp_04_calib_metrics.csv'));
 
 fprintf('Done. Total runs: %d\n', height(T_point));

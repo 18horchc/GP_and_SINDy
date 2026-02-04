@@ -1,6 +1,6 @@
 %% GP Lotka-Volterra Experiment 01: Regular sampling, 0% noise, varying N and kernel
 %
-% Same structure as gp_logistic_design/run_exp_01 but for Lotka-Volterra (prey and predator).
+% Same structure as gp_logistic_design/log_exp_01 but for Lotka-Volterra (prey and predator).
 % Uses same parameters as lotka_volterra_model.m / all_toy_problems.m (defaults: alpha=1, beta=0.2, delta=0.5, gamma=0.2, x0=1, y0=2, tspan=[0 50]).
 %
 % Scope:
@@ -15,7 +15,7 @@
 
 clear; clc; close all;
 
-% This folder, parent (for metric_helpers, lotka_volterra_model)
+% This folder (lotka_volterra_model, ground_truth_LV) and parent (metric_helpers)
 script_dir = fileparts(mfilename('fullpath'));
 addpath(script_dir);
 addpath(fullfile(script_dir, '..'));
