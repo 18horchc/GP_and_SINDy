@@ -43,11 +43,10 @@ switch lower(metric_name)
         % Avoid zero/negative std
         ystd = max(ystd, 1e-10);
 
-        % NLPD = -sum log p(y_i* | X,y,x_i*); log p = log N(y; mu, sigma^2)
+        % NLPD = mean negative log predictive density (per test point).
+        % log p(y*|X,y,x*) = log N(y*; mu, sigma^2) = -0.5*log(2*pi) - log(sigma) - 0.5*((y*-mu)/sigma)^2
         log_p = -0.5*log(2*pi) - log(ystd) - 0.5*((y_true - ymu)./ystd).^2;
-        nlpd = -sum(log_p);
-        %Might be overcomplicating above calculation? Could use:
-        % -sum(normlogpdf(y_true, ymu, sqrt(ystd)));
+        nlpd = -mean(log_p);   % mean over test set (matches fitrgp/predict usage; comparable across N)
 
 
         % MSLL = (1/n)*sum [ -log p(y_*^i|GP) + log p(y_*^i|train_data) ]
