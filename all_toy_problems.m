@@ -7,7 +7,7 @@
 %   1. Logistic Growth          - gp_logistic_design/logistic_growth.m
 %   2. Lotka-Volterra           - gp_LV_design/lotka_volterra_model.m
 %   3. Reaction Kinetics        - gp_kinetics_design/reaction_kinetics.m
-%   4. SINDy+MCMC Microglia     - sindy_mcmc_microglia.m
+%   4. SINDy+MCMC Microglia     - gp_SINDy_design/sindy_mcmc_microglia.m
 %   5. ESINDy+DBN Microglia     - esindy_dbn_microglia.m
 %
 % Author: Cordelia Horch
@@ -15,11 +15,12 @@
 
 clear; clc; close all;
 
-% Ensure logistic, LV, and kinetics models are on path (they live in design folders)
+% Ensure logistic, LV, kinetics, and SINDy models are on path (they live in design folders)
 root_dir = fileparts(mfilename('fullpath'));
 addpath(fullfile(root_dir, 'gp_logistic_design'));
 addpath(fullfile(root_dir, 'gp_LV_design'));
 addpath(fullfile(root_dir, 'gp_kinetics_design'));
+addpath(fullfile(root_dir, 'gp_SINDy_design'));
 
 %% ========================================================================
 %  SELECT WHICH MODELS TO RUN
