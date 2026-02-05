@@ -8,7 +8,7 @@
 %               with the Save (optional) section uncommented so .mat files exist.
 %
 % Output: SINDy_metrics_all.csv and SINDy_metrics_all.mat in this folder.
-%         Columns: Noise, N, Kernel, State, RMSE, MAE, R2, NLPD, MSLL, CRPS, sMSE, Coverage, NLML.
+%         Columns: Noise, N, Kernel, State, Regular, Optimization, N_per_Time, RMSE, MAE, R2, NLPD, MSLL, CRPS, sMSE, Coverage, NLML.
 
 clear; clc;
 
@@ -39,7 +39,10 @@ for ix = 1:size(exp_files, 1)
     T_point.Noise = repmat(noise, height(T_point), 1);
     T_merged = join(T_point, T_prob, 'Keys', {'Kernel', 'N', 'State'});
     T_merged = join(T_merged, T_calib, 'Keys', {'Kernel', 'N', 'State'});
-    T_merged = T_merged(:, {'Noise', 'N', 'Kernel', 'State', 'RMSE', 'MAE', 'R2', 'NLPD', 'MSLL', 'CRPS', 'sMSE', 'Coverage', 'NLML'});
+    T_merged.Regular = repmat(categorical("Yes"), height(T_merged), 1);
+    T_merged.Optimization = repmat(categorical("Default"), height(T_merged), 1);
+    T_merged.N_per_Time = ones(height(T_merged), 1);
+    T_merged = T_merged(:, {'Noise', 'N', 'Kernel', 'State', 'Regular', 'Optimization', 'N_per_Time', 'RMSE', 'MAE', 'R2', 'NLPD', 'MSLL', 'CRPS', 'sMSE', 'Coverage', 'NLML'});
     T_all = [T_all; T_merged];
 end
 
