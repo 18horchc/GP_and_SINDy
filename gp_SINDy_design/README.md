@@ -16,7 +16,11 @@ GP experiments on the **SINDy+MCMC microglial cell dynamics** model (Amato & Arn
 
 | Script | Scope |
 |--------|--------|
-| **SINDy_exp_01_regular_0noise.m** | Ground truth SINDy; regular sampling; 0% noise; N = 5, 10, 25, 50; 5 kernels (SqExp, Matern 1/2, 3/2, 5/2, RatQuad); one GP per state (M1, M2). |
+| **SINDy_exp_01_regular_0noise.m** | Ground truth SINDy; regular sampling; 0% noise; N = 5, 10, 25, 50; 5 kernels; one GP per state (M1, M2). |
+| **SINDy_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise (sigma = 0.01×std per state); rng(42) for reproducibility. |
+| **SINDy_exp_03_regular_5noise.m** | Same as 02 with 5% Gaussian noise (sigma = 0.05×std per state). |
+| **SINDy_exp_04_regular_10noise.m** | Same as 03 with 10% Gaussian noise (sigma = 0.10×std per state). |
+| **SINDy_exp_05_regular_20noise.m** | Same as 04 with 20% Gaussian noise (sigma = 0.20×std per state). |
 
 Tables include a **State** column (M1 / M2). Figures: RMSE vs N (2 subplots for M1, M2); one figure per kernel with 2×4 subplots (row 1: M1 for N=5,10,25,50; row 2: M2).
 
