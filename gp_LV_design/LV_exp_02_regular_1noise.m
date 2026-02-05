@@ -208,9 +208,9 @@ for ik = 1:length(kernel_labels)
 end
 
 %% 7. Save (optional)
-% save(fullfile(script_dir, 'results_exp_02_regular_1noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'prey_gt', 'pred_gt');
-% writetable(T_point, fullfile(script_dir, 'results_exp_02_point_metrics.csv'));
-% writetable(T_prob, fullfile(script_dir, 'results_exp_02_prob_metrics.csv'));
-% writetable(T_calib, fullfile(script_dir, 'results_exp_02_calib_metrics.csv'));
+save(fullfile(script_dir, 'results_exp_02_regular_1noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'prey_gt', 'pred_gt');
+writetable(T_point, fullfile(script_dir, 'results_exp_02_point_metrics.csv'));
+writetable(T_prob, fullfile(script_dir, 'results_exp_02_prob_metrics.csv'));
+writetable(T_calib, fullfile(script_dir, 'results_exp_02_calib_metrics.csv'));
 
 fprintf('Done. Total rows: %d (Prey + Predator per Kernel,N)\n', height(T_point));

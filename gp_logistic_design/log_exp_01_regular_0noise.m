@@ -153,9 +153,9 @@ for ik = 1:length(kernel_labels)
 end
 
 %% 7. Save (optional)
-% save(fullfile(script_dir, 'results_exp_01_regular_0noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'y_gt');
-% writetable(T_point, fullfile(script_dir, 'results_exp_01_point_metrics.csv'));
-% writetable(T_prob, fullfile(script_dir, 'results_exp_01_prob_metrics.csv'));
-% writetable(T_calib, fullfile(script_dir, 'results_exp_01_calib_metrics.csv'));
+save(fullfile(script_dir, 'results_exp_01_regular_0noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'y_gt');
+writetable(T_point, fullfile(script_dir, 'results_exp_01_point_metrics.csv'));
+writetable(T_prob, fullfile(script_dir, 'results_exp_01_prob_metrics.csv'));
+writetable(T_calib, fullfile(script_dir, 'results_exp_01_calib_metrics.csv'));
 
 fprintf('Done. Total runs: %d\n', height(T_point));

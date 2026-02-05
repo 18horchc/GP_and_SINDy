@@ -186,9 +186,9 @@ for ik = 1:length(kernel_labels)
 end
 
 %% 7. Save (optional)
-% save(fullfile(script_dir, 'results_kin_exp_03_regular_5noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'x_gt', 'y_gt', 'z_gt');
-% writetable(T_point, fullfile(script_dir, 'results_kin_exp_03_point_metrics.csv'));
-% writetable(T_prob, fullfile(script_dir, 'results_kin_exp_03_prob_metrics.csv'));
-% writetable(T_calib, fullfile(script_dir, 'results_kin_exp_03_calib_metrics.csv'));
+save(fullfile(script_dir, 'results_kin_exp_03_regular_5noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'x_gt', 'y_gt', 'z_gt');
+writetable(T_point, fullfile(script_dir, 'results_kin_exp_03_point_metrics.csv'));
+writetable(T_prob, fullfile(script_dir, 'results_kin_exp_03_prob_metrics.csv'));
+writetable(T_calib, fullfile(script_dir, 'results_kin_exp_03_calib_metrics.csv'));
 
 fprintf('Done. Total rows: %d (X, Y, Z per Kernel,N)\n', height(T_point));

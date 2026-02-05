@@ -177,9 +177,9 @@ for ik = 1:length(kernel_labels)
 end
 
 %% 7. Save (optional)
-% save(fullfile(script_dir, 'results_SINDy_exp_05_regular_20noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'M1_gt', 'M2_gt');
-% writetable(T_point, fullfile(script_dir, 'results_SINDy_exp_05_point_metrics.csv'));
-% writetable(T_prob, fullfile(script_dir, 'results_SINDy_exp_05_prob_metrics.csv'));
-% writetable(T_calib, fullfile(script_dir, 'results_SINDy_exp_05_calib_metrics.csv'));
+save(fullfile(script_dir, 'results_SINDy_exp_05_regular_20noise.mat'), 'T_point', 'T_prob', 'T_calib', 't_gt', 'M1_gt', 'M2_gt');
+writetable(T_point, fullfile(script_dir, 'results_SINDy_exp_05_point_metrics.csv'));
+writetable(T_prob, fullfile(script_dir, 'results_SINDy_exp_05_prob_metrics.csv'));
+writetable(T_calib, fullfile(script_dir, 'results_SINDy_exp_05_calib_metrics.csv'));
 
 fprintf('Done. Total rows: %d (M1 + M2 per Kernel,N)\n', height(T_point));
