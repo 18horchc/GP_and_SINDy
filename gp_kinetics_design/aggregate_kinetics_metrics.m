@@ -1,11 +1,10 @@
 %% Aggregate all kinetics experiment metrics into one table/file
 %
-% Loads saved results from kin_exp_01 through kin_exp_05 (0% to 20% noise),
-% merges point-estimate, probabilistic, and calibration tables, adds a
-% Noise column, and saves one combined CSV (and .mat) for comparison.
+% Loads saved results from kin_exp_01 through kin_exp_10 (regular 01-05,
+% irregular 06-10), merges point-estimate, probabilistic, and calibration
+% tables, adds Noise and Regular columns, and saves one combined CSV (and .mat).
 %
-% Prerequisite: Run kin_exp_01_regular_0noise.m through kin_exp_05_regular_20noise.m
-%               with the Save (optional) section uncommented so .mat files exist.
+% Prerequisite: Run kin_exp_01 through kin_exp_10 so .mat result files exist.
 %
 % Output: kinetics_metrics_all.csv and kinetics_metrics_all.mat in this folder.
 %         Columns: Noise, N, Kernel, State, Regular, Optimization, N_per_Time, RMSE, MAE, R2, NLPD, MSLL, CRPS, sMSE, Coverage, NLML.
@@ -14,22 +13,28 @@ clear; clc;
 
 script_dir = fileparts(mfilename('fullpath'));
 
-% Experiment file stems and noise level (fraction)
+% Experiment file stems: {filename, noise_fraction, is_regular}
 exp_files = {
-    'results_kin_exp_01_regular_0noise.mat',  0;
-    'results_kin_exp_02_regular_1noise.mat', 0.01;
-    'results_kin_exp_03_regular_5noise.mat', 0.05;
-    'results_kin_exp_04_regular_10noise.mat', 0.10;
-    'results_kin_exp_05_regular_20noise.mat', 0.20
+    'results_kin_exp_01_regular_0noise.mat',  0,    true;
+    'results_kin_exp_02_regular_1noise.mat', 0.01, true;
+    'results_kin_exp_03_regular_5noise.mat', 0.05, true;
+    'results_kin_exp_04_regular_10noise.mat', 0.10, true;
+    'results_kin_exp_05_regular_20noise.mat', 0.20, true;
+    'results_kin_exp_06_irregular_0noise.mat',  0,    false;
+    'results_kin_exp_07_irregular_1noise.mat', 0.01, false;
+    'results_kin_exp_08_irregular_5noise.mat', 0.05, false;
+    'results_kin_exp_09_irregular_10noise.mat', 0.10, false;
+    'results_kin_exp_10_irregular_20noise.mat', 0.20, false
 };
 
 T_all = [];
 for ix = 1:size(exp_files, 1)
     fname = exp_files{ix, 1};
     noise = exp_files{ix, 2};
+    is_regular = exp_files{ix, 3};
     fpath = fullfile(script_dir, fname);
     if ~isfile(fpath)
-        warning('Missing %s — run kin_exp_%02d_regular_*noise.m first with Save uncommented.', fname, ix);
+        warning('Missing %s — run the corresponding kin_exp_*.m first.', fname);
         continue
     end
     S = load(fpath, 'T_point', 'T_prob', 'T_calib');
@@ -39,7 +44,11 @@ for ix = 1:size(exp_files, 1)
     T_point.Noise = repmat(noise, height(T_point), 1);
     T_merged = join(T_point, T_prob, 'Keys', {'Kernel', 'N', 'State'});
     T_merged = join(T_merged, T_calib, 'Keys', {'Kernel', 'N', 'State'});
-    T_merged.Regular = repmat(categorical("Yes"), height(T_merged), 1);
+    if is_regular
+        T_merged.Regular = repmat(categorical("Yes"), height(T_merged), 1);
+    else
+        T_merged.Regular = repmat(categorical("No"), height(T_merged), 1);
+    end
     T_merged.Optimization = repmat(categorical("Default"), height(T_merged), 1);
     T_merged.N_per_Time = ones(height(T_merged), 1);
     T_merged = T_merged(:, {'Noise', 'N', 'Kernel', 'State', 'Regular', 'Optimization', 'N_per_Time', 'RMSE', 'MAE', 'R2', 'NLPD', 'MSLL', 'CRPS', 'sMSE', 'Coverage', 'NLML'});
@@ -47,7 +56,7 @@ for ix = 1:size(exp_files, 1)
 end
 
 if isempty(T_all)
-    error('No experiment files found. Run kin_exp_01 through kin_exp_05 with Save uncommented.');
+    error('No experiment files found. Run kin_exp_01 through kin_exp_10 so .mat files exist.');
 end
 
 out_csv = fullfile(script_dir, 'kinetics_metrics_all.csv');
