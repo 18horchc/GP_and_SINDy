@@ -22,11 +22,10 @@
 %       opts.config_filter = @(c) c.noise_pct <= 0.05;        % low noise
 %       opts.config_filter = struct('noise_pct', 0);          % match noise_pct==0
 %
-%   Experiment configs (same as original SINDy_exp_01..20):
-%     Exp 01-05:  Regular, 0/1/5/10/20% noise, default optimization
-%     Exp 06-10:  Irregular, 0/1/5/10/20% noise, default optimization
-%     Exp 11-15:  Regular, 0/1/5/10/20% noise, auto hyperparameter optimization
-%     Exp 16-20:  Irregular, 0/1/5/10/20% noise, auto optimization
+%   Experiment configs (60 total):
+%     Exp 01-20:  Base (1 obs per time); regular/irregular, 5 noise, default/auto
+%     Exp 21-40:  Same conditions, 3 replicates per time point
+%     Exp 41-60:  Same conditions, 8 replicates per time point
 %
 %   Note: SINDy+MCMC microglia, 2 states (M1, M2). Five built-in kernels only.
 
@@ -62,11 +61,13 @@ function run_all_SINDy_experiments(opts)
             continue
         end
         cfg = configs{ix};
-        fprintf('Running SINDy experiment %d/%d: exp_%02d %s %.0f%% noise %s\n', ...
+        n_rep = get_opt(cfg, 'n_replicates', 1);
+        rep_str = iif(n_rep > 1, sprintf(' %drep', n_rep), '');
+        fprintf('Running SINDy experiment %d/%d: exp_%02d %s %.0f%% noise %s%s\n', ...
             ii, length(run_subset), cfg.exp_id, ...
             iif(cfg.is_regular, 'regular', 'irregular'), ...
             cfg.noise_pct * 100, ...
-            iif(cfg.is_auto, 'auto', 'default'));
+            iif(cfg.is_auto, 'auto', 'default'), rep_str);
         run_SINDy_experiment(cfg, struct('out_dir', out_dir, 'make_plots', make_plots));
     end
 
@@ -96,24 +97,27 @@ function filtered = apply_config_filter(configs, filter_spec)
 end
 
 function configs = build_SINDy_configs()
+    % 60 experiments: 20 base (1 rep) + 20 with 3 reps + 20 with 8 reps
     noise_levels = [0, 0.01, 0.05, 0.10, 0.20];
     configs = {};
     exp_id = 0;
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', false);
-    end
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', false);
-    end
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', true);
-    end
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', true);
+    for n_rep = [1, 3, 8]
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', false, 'n_replicates', n_rep);
+        end
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', false, 'n_replicates', n_rep);
+        end
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', true, 'n_replicates', n_rep);
+        end
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', true, 'n_replicates', n_rep);
+        end
     end
 end
 

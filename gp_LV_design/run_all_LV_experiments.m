@@ -22,7 +22,7 @@
 %       opts.config_filter = @(c) c.noise_pct <= 0.05;       % low noise
 %       opts.config_filter = struct('noise_pct', 0);         % match noise_pct==0
 %
-%   Experiment configs (same as original LV_exp_01..20):
+%   Experiment configs (60 total):
 %     Exp 01-05:  Regular, 0/1/5/10/20% noise, default optimization
 %     Exp 06-10:  Irregular, 0/1/5/10/20% noise, default optimization
 %     Exp 11-15:  Regular, 0/1/5/10/20% noise, auto hyperparameter optimization
@@ -63,11 +63,13 @@ function run_all_LV_experiments(opts)
             continue
         end
         cfg = configs{ix};
-        fprintf('Running LV experiment %d/%d: exp_%02d %s %.0f%% noise %s\n', ...
+        n_rep = get_opt(cfg, 'n_replicates', 1);
+        rep_str = iif(n_rep > 1, sprintf(' %drep', n_rep), '');
+        fprintf('Running LV experiment %d/%d: exp_%02d %s %.0f%% noise %s%s\n', ...
             ii, length(run_subset), cfg.exp_id, ...
             iif(cfg.is_regular, 'regular', 'irregular'), ...
             cfg.noise_pct * 100, ...
-            iif(cfg.is_auto, 'auto', 'default'));
+            iif(cfg.is_auto, 'auto', 'default'), rep_str);
         run_LV_experiment(cfg, struct('out_dir', out_dir, 'make_plots', make_plots));
     end
 
@@ -100,26 +102,28 @@ function configs = build_LV_configs()
     noise_levels = [0, 0.01, 0.05, 0.10, 0.20];
     configs = {};
     exp_id = 0;
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', false);
-    end
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', false);
-    end
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', true);
-    end
-    for n = noise_levels
-        exp_id = exp_id + 1;
-        configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', true);
+    for n_rep = [1, 3, 8]
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', false, 'n_replicates', n_rep);
+        end
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', false, 'n_replicates', n_rep);
+        end
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', true, 'is_auto', true, 'n_replicates', n_rep);
+        end
+        for n = noise_levels
+            exp_id = exp_id + 1;
+            configs{end+1} = struct('exp_id', exp_id, 'noise_pct', n, 'is_regular', false, 'is_auto', true, 'n_replicates', n_rep);
+        end
     end
 end
 
-function v = get_opt(opts, name, default)
-    if isfield(opts, name), v = opts.(name); else, v = default; end
+function v = get_opt(s, name, default)
+    if isfield(s, name), v = s.(name); else, v = default; end
 end
 
 function v = iif(cond, a, b)

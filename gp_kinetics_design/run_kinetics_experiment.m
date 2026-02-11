@@ -5,10 +5,11 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
 %   [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
 %
 %   cfg: struct with fields:
-%        .exp_id     - experiment number (1-20), used for output filenames
-%        .noise_pct  - noise fraction (0, 0.01, 0.05, 0.10, 0.20)
-%        .is_regular - true = linspace sampling, false = randperm sampling
-%        .is_auto    - true = OptimizeHyperparameters='auto', false = default
+%        .exp_id      - experiment number (1-60), used for output filenames
+%        .noise_pct   - noise fraction (0, 0.01, 0.05, 0.10, 0.20)
+%        .is_regular  - true = linspace sampling, false = randperm sampling
+%        .is_auto     - true = OptimizeHyperparameters='auto', false = default
+%        .n_replicates - 1, 3, or 8; observations per time point per state (default 1)
 %
 %   opts (optional): struct with fields:
 %        .out_dir    - where to save (default: folder containing this file)
@@ -32,11 +33,9 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
 
     %% Ground truth (three states: X, Y, Z)
     [t_gt, x_gt, y_gt, z_gt] = ground_truth_kinetics(500);
-    sigma_noise_x = cfg.noise_pct * std(x_gt);
-    sigma_noise_y = cfg.noise_pct * std(y_gt);
-    sigma_noise_z = cfg.noise_pct * std(z_gt);
+    n_rep = get_opt(cfg, 'n_replicates', 1);
 
-    %% Design: 5 built-in kernels only
+    %% Design: N time points, n_replicates per state
     N_list = [5, 10, 25, 50];
     kernel_list = {'squaredexponential', 'exponential', 'matern32', 'matern52', 'rationalquadratic'};
     kernel_labels = {'SqExp', 'Matern 1/2', 'Matern 3/2', 'Matern 5/2', 'RatQuad'};
@@ -67,18 +66,13 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
     for in = 1:length(N_list)
         N = N_list(in);
         if cfg.is_regular
-            t_obs = linspace(0, 50, N)';
+            t_points = linspace(0, 50, N)';
         else
-            t_obs = sort(randperm(51, N) - 1)';
+            t_points = sort(randperm(51, N) - 1)';
         end
-        x_obs = interp1(t_gt, x_gt, t_obs, 'linear', 'extrap');
-        y_obs = interp1(t_gt, y_gt, t_obs, 'linear', 'extrap');
-        z_obs = interp1(t_gt, z_gt, t_obs, 'linear', 'extrap');
-        if cfg.noise_pct > 0
-            x_obs = x_obs + sigma_noise_x * randn(size(x_obs));
-            y_obs = y_obs + sigma_noise_y * randn(size(y_obs));
-            z_obs = z_obs + sigma_noise_z * randn(size(z_obs));
-        end
+        [t_obs, x_obs] = generate_replicates(t_gt, x_gt, t_points, n_rep, cfg.noise_pct);
+        [~, y_obs] = generate_replicates(t_gt, y_gt, t_points, n_rep, cfg.noise_pct);
+        [~, z_obs] = generate_replicates(t_gt, z_gt, t_points, n_rep, cfg.noise_pct);
         t_obs_by_N{in} = t_obs;
         x_obs_by_N{in} = x_obs;
         y_obs_by_N{in} = y_obs;
@@ -95,9 +89,9 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
                 [rmse_x, mae_x, r2_x] = metric_helpers('point_estimate', x_gt, ymu_x);
                 [nlpd_x, msll_x, crps_x] = metric_helpers('probabilistic', x_gt, ymu_x, ystd_x, x_obs);
                 [smse_x, cov_x, nlml_x] = metric_helpers('calibration', x_gt, ymu_x, ystd_x, x_obs, gpr_x);
-                results_point = [results_point; {kernel_labels{ik}, N, 'X', rmse_x, mae_x, r2_x}];
-                results_prob  = [results_prob;  {kernel_labels{ik}, N, 'X', nlpd_x, msll_x, crps_x}];
-                results_calib = [results_calib; {kernel_labels{ik}, N, 'X', smse_x, cov_x, nlml_x}];
+                results_point = [results_point; {kernel_labels{ik}, N, n_rep, 'X', rmse_x, mae_x, r2_x}];
+                results_prob  = [results_prob;  {kernel_labels{ik}, N, n_rep, 'X', nlpd_x, msll_x, crps_x}];
+                results_calib = [results_calib; {kernel_labels{ik}, N, n_rep, 'X', smse_x, cov_x, nlml_x}];
 
                 gpr_y = fitrgp(t_obs, y_obs, fit_opts{:});
                 [ymu_y, ystd_y, ~] = predict(gpr_y, t_gt);
@@ -106,9 +100,9 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
                 [rmse_y, mae_y, r2_y] = metric_helpers('point_estimate', y_gt, ymu_y);
                 [nlpd_y, msll_y, crps_y] = metric_helpers('probabilistic', y_gt, ymu_y, ystd_y, y_obs);
                 [smse_y, cov_y, nlml_y] = metric_helpers('calibration', y_gt, ymu_y, ystd_y, y_obs, gpr_y);
-                results_point = [results_point; {kernel_labels{ik}, N, 'Y', rmse_y, mae_y, r2_y}];
-                results_prob  = [results_prob;  {kernel_labels{ik}, N, 'Y', nlpd_y, msll_y, crps_y}];
-                results_calib = [results_calib; {kernel_labels{ik}, N, 'Y', smse_y, cov_y, nlml_y}];
+                results_point = [results_point; {kernel_labels{ik}, N, n_rep, 'Y', rmse_y, mae_y, r2_y}];
+                results_prob  = [results_prob;  {kernel_labels{ik}, N, n_rep, 'Y', nlpd_y, msll_y, crps_y}];
+                results_calib = [results_calib; {kernel_labels{ik}, N, n_rep, 'Y', smse_y, cov_y, nlml_y}];
 
                 gpr_z = fitrgp(t_obs, z_obs, fit_opts{:});
                 [ymu_z, ystd_z, ~] = predict(gpr_z, t_gt);
@@ -117,16 +111,16 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
                 [rmse_z, mae_z, r2_z] = metric_helpers('point_estimate', z_gt, ymu_z);
                 [nlpd_z, msll_z, crps_z] = metric_helpers('probabilistic', z_gt, ymu_z, ystd_z, z_obs);
                 [smse_z, cov_z, nlml_z] = metric_helpers('calibration', z_gt, ymu_z, ystd_z, z_obs, gpr_z);
-                results_point = [results_point; {kernel_labels{ik}, N, 'Z', rmse_z, mae_z, r2_z}];
-                results_prob  = [results_prob;  {kernel_labels{ik}, N, 'Z', nlpd_z, msll_z, crps_z}];
-                results_calib = [results_calib; {kernel_labels{ik}, N, 'Z', smse_z, cov_z, nlml_z}];
+                results_point = [results_point; {kernel_labels{ik}, N, n_rep, 'Z', rmse_z, mae_z, r2_z}];
+                results_prob  = [results_prob;  {kernel_labels{ik}, N, n_rep, 'Z', nlpd_z, msll_z, crps_z}];
+                results_calib = [results_calib; {kernel_labels{ik}, N, n_rep, 'Z', smse_z, cov_z, nlml_z}];
             catch me
                 warning('Failed: N=%d, kernel=%s. %s', N, kernel_labels{ik}, me.message);
                 for s = 1:3
                     st = state_labels{s};
-                    results_point = [results_point; {kernel_labels{ik}, N, st, NaN, NaN, NaN}];
-                    results_prob  = [results_prob;  {kernel_labels{ik}, N, st, NaN, NaN, NaN}];
-                    results_calib = [results_calib; {kernel_labels{ik}, N, st, NaN, NaN, NaN}];
+                    results_point = [results_point; {kernel_labels{ik}, N, n_rep, st, NaN, NaN, NaN}];
+                    results_prob  = [results_prob;  {kernel_labels{ik}, N, n_rep, st, NaN, NaN, NaN}];
+                    results_calib = [results_calib; {kernel_labels{ik}, N, n_rep, st, NaN, NaN, NaN}];
                 end
                 pred_ymu_x{ik, in} = nan(size(t_gt)); pred_ystd_x{ik, in} = nan(size(t_gt));
                 pred_ymu_y{ik, in} = nan(size(t_gt)); pred_ystd_y{ik, in} = nan(size(t_gt));
@@ -135,16 +129,18 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
         end
     end
 
-    T_point = cell2table(results_point, 'VariableNames', {'Kernel', 'N', 'State', 'RMSE', 'MAE', 'R2'});
-    T_prob  = cell2table(results_prob,  'VariableNames', {'Kernel', 'N', 'State', 'NLPD', 'MSLL', 'CRPS'});
-    T_calib = cell2table(results_calib, 'VariableNames', {'Kernel', 'N', 'State', 'sMSE', 'Coverage', 'NLML'});
+    T_point = cell2table(results_point, 'VariableNames', {'Kernel', 'N', 'N_replicates', 'State', 'RMSE', 'MAE', 'R2'});
+    T_prob  = cell2table(results_prob,  'VariableNames', {'Kernel', 'N', 'N_replicates', 'State', 'NLPD', 'MSLL', 'CRPS'});
+    T_calib = cell2table(results_calib, 'VariableNames', {'Kernel', 'N', 'N_replicates', 'State', 'sMSE', 'Coverage', 'NLML'});
 
     %% Plots
     if make_plots
         sam_str = iif(cfg.is_regular, 'Regular', 'Irregular');
         noise_str = sprintf('%.0f%%', cfg.noise_pct * 100);
         tit_suffix = iif(cfg.is_auto, ', Auto', '');
-        tit_base = sprintf('GP Kinetics Exp %02d: %s sampling, %s noise%s', cfg.exp_id, sam_str, noise_str, tit_suffix);
+        rep_str = iif(n_rep > 1, sprintf(' — Replicates, %d', n_rep), '');
+        tit_base = sprintf('GP Kinetics Exp %02d: %s sampling, %s noise%s%s', cfg.exp_id, sam_str, noise_str, tit_suffix, rep_str);
+        N_total_list = N_list * n_rep;
 
         figure;
         for is = 1:3
@@ -152,10 +148,10 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
             hold on;
             for ik = 1:length(kernel_labels)
                 idx = strcmp(T_point.Kernel, kernel_labels{ik}) & strcmp(T_point.State, state_labels{is});
-                plot(T_point.N(idx), T_point.RMSE(idx), '-o', 'LineWidth', 1.5, 'DisplayName', kernel_labels{ik});
+                plot(N_total_list, T_point.RMSE(idx), '-o', 'LineWidth', 1.5, 'DisplayName', kernel_labels{ik});
             end
-            xlabel('N'); ylabel('RMSE'); title(sprintf('Exp %02d: %s — %s, %s%s', cfg.exp_id, state_labels{is}, sam_str, noise_str, tit_suffix));
-            legend('Location', 'best'); grid on; set(gca, 'XTick', N_list);
+            xlabel('N'); ylabel('RMSE'); title(sprintf('Exp %02d: %s — %s, %s%s%s', cfg.exp_id, state_labels{is}, sam_str, noise_str, tit_suffix, rep_str));
+            legend('Location', 'best'); grid on; set(gca, 'XTick', N_total_list);
         end
         sgtitle(tit_base);
 
@@ -183,19 +179,19 @@ function [T_point, T_prob, T_calib] = run_kinetics_experiment(cfg, opts)
                         fill([t_gt; flip(t_gt)], [ylo; flip(yhi)], colors{is}, 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
                     end
                     hold off;
-                    xlabel('Time'); ylabel(state_labels{is}); title(sprintf('%s, N = %d', state_labels{is}, N_list(in)));
+                    xlabel('Time'); ylabel(state_labels{is}); title(sprintf('%s, N = %d', state_labels{is}, N_total_list(in)));
                     legend('Location', 'best', 'FontSize', 8); grid on; xlim([0 50]);
                 end
             end
-            sgtitle(sprintf('GP Kinetics Exp %02d: %s — %s, %s%s', cfg.exp_id, kernel_labels{ik}, sam_str, noise_str, tit_suffix));
+            sgtitle(sprintf('GP Kinetics Exp %02d: %s — %s, %s%s%s', cfg.exp_id, kernel_labels{ik}, sam_str, noise_str, tit_suffix, rep_str));
         end
     end
 
     %% Save (MAT + single CSV with all metrics per experiment; same stem for both)
     fstem = get_output_fstem(cfg);
     save(fullfile(out_dir, [fstem '.mat']), 'T_point', 'T_prob', 'T_calib', 't_gt', 'x_gt', 'y_gt', 'z_gt');
-    T_merged = join(T_point, T_prob, 'Keys', {'Kernel', 'N', 'State'});
-    T_merged = join(T_merged, T_calib, 'Keys', {'Kernel', 'N', 'State'});
+    T_merged = join(T_point, T_prob, 'Keys', {'Kernel', 'N', 'N_replicates', 'State'});
+    T_merged = join(T_merged, T_calib, 'Keys', {'Kernel', 'N', 'N_replicates', 'State'});
     writetable(T_merged, fullfile(out_dir, [fstem '.csv']));
 end
 
@@ -207,13 +203,31 @@ function v = iif(cond, a, b)
     if cond, v = a; else, v = b; end
 end
 
+function [t_obs, y_obs] = generate_replicates(t_gt, y_gt, t_points, n_rep, noise_pct)
+    y_true_at_t = interp1(t_gt, y_gt, t_points, 'linear', 'extrap');
+    t_obs = repelem(t_points, n_rep);
+    y_obs = repelem(y_true_at_t, n_rep);
+    if noise_pct > 0 && n_rep > 1
+        sigma_floor = 1e-10 * std(y_gt);
+        for i = 1:length(t_points)
+            y_true_i = y_true_at_t(i);
+            sigma_i = max(noise_pct * abs(y_true_i), sigma_floor);
+            idx = (i-1)*n_rep + (1:n_rep);
+            y_obs(idx) = y_true_i + sigma_i * randn(n_rep, 1);
+        end
+    end
+    t_obs = t_obs(:);
+    y_obs = y_obs(:);
+end
+
 function fstem = get_output_fstem(cfg)
-    % Same stem for .mat and .csv (e.g. results_kin_exp_01_regular_0noise)
     sam = iif(cfg.is_regular, 'regular', 'irregular');
     noise = cfg.noise_pct;
     if noise == 0, ns = '0noise'; elseif noise == 0.01, ns = '1noise';
     elseif noise == 0.05, ns = '5noise'; elseif noise == 0.10, ns = '10noise';
     elseif noise == 0.20, ns = '20noise'; else, ns = sprintf('%.0fnoise', noise*100); end
     auto = iif(cfg.is_auto, '_auto', '');
-    fstem = sprintf('results_kin_exp_%02d_%s_%s%s', cfg.exp_id, sam, ns, auto);
+    n_rep = get_opt(cfg, 'n_replicates', 1);
+    rep_suf = iif(n_rep > 1, sprintf('_%drep', n_rep), '');
+    fstem = sprintf('results_kin_exp_%02d_%s_%s%s%s', cfg.exp_id, sam, ns, auto, rep_suf);
 end
