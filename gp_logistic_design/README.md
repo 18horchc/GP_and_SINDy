@@ -7,20 +7,50 @@ Experiments for the **GP-on-logistic-growth** design (see [GP_Logistic_Experimen
 Instead of running 20 individual experiment files, use the parameterized runner:
 
 ```matlab
-% Run all 20 experiments and aggregate into logistic_metrics_all.csv/.mat
+% Run all 20 experiments (aggregation is a separate call)
 run_all_logistic_experiments();
 
-% Or with options (no plots, subset, skip aggregate)
-run_all_logistic_experiments(struct('make_plots', false, 'run_subset', [1 5 10], 'do_aggregate', false));
+% When ready, build the summary table from all existing result files
+run('gp_logistic_design/aggregate_logistic_metrics.m');
 ```
 
 **Files:**
-- **run_all_logistic_experiments.m** — Config-driven driver: runs all experiments and aggregates.
+- **run_all_logistic_experiments.m** — Config-driven driver: runs experiments. Supports `config_filter` and `run_subset`.
 - **run_logistic_experiment.m** — Core runner: takes config `{exp_id, noise_pct, is_regular, is_auto}` and runs one experiment.
 - **master_run_scripts.m** — Convenience: calls `run_all_logistic_experiments()`.
-- **aggregate_logistic_metrics.m** — Unchanged; compiles all `results_exp_*.mat` into `logistic_metrics_all.csv` / `.mat`.
+- **aggregate_logistic_metrics.m** — Call separately; compiles all `results_exp_*.mat` into `logistic_metrics_all.csv` / `.mat`.
 
 **Benefits:** One place to fix bugs, add kernels, or change N_list. Add a new condition by extending `build_logistic_configs()`.
+
+### Config filter examples (run subsets)
+
+Use `config_filter` to run only experiments matching criteria. Aggregation is **separate** — it never overwrites until you explicitly call it.
+
+```matlab
+% Zero noise only (exp 01, 06, 11, 16)
+run_all_logistic_experiments(struct('config_filter', @(c) c.noise_pct == 0));
+
+% Regular sampling only (exp 01-05, 11-15)
+run_all_logistic_experiments(struct('config_filter', @(c) c.is_regular));
+
+% Default optimization only (exp 01-10)
+run_all_logistic_experiments(struct('config_filter', @(c) ~c.is_auto));
+
+% Low noise (0% and 1%)
+run_all_logistic_experiments(struct('config_filter', @(c) c.noise_pct <= 0.01));
+
+% Struct match: noise_pct == 0
+run_all_logistic_experiments(struct('config_filter', struct('noise_pct', 0)));
+
+% After running subsets, aggregate when ready (merges all existing .mat files)
+run('gp_logistic_design/aggregate_logistic_metrics.m');
+```
+
+Index-based subset (by position in filtered list):
+
+```matlab
+run_all_logistic_experiments(struct('config_filter', @(c) c.is_regular, 'run_subset', [1 3 5]));
+```
 
 ---
 
@@ -31,7 +61,7 @@ The original `log_exp_NN_<scope>.m` files (01–20) still work and produce ident
 ## Naming convention
 
 - **Runner scripts:** `log_exp_NN_<scope>.m` (legacy) or `run_logistic_experiment(cfg)`.
-- **Results:** `results_exp_NN_<scope>.mat` (for aggregate) and `results_exp_NN_*_metrics.csv`.
+- **Results:** `results_exp_NN_<scope>.mat` and `results_exp_NN_<scope>.csv` (same stem; e.g. `results_exp_01_regular_0noise`).
 - **Shared helpers:** `ground_truth_logistic.m`, `logistic_growth.m`, `metric_helpers.m` (project root).
 
 ## Experiments (all 20)
@@ -52,6 +82,8 @@ From the **project root** or this folder:
 ```matlab
 cd('gp_logistic_design')
 run_all_logistic_experiments
+% When done, build the summary table:
+run('aggregate_logistic_metrics.m')
 ```
 
 Or run one experiment only:
