@@ -7,18 +7,26 @@ GP experiments on the **SINDy+MCMC microglial cell dynamics** model (Amato & Arn
 Use the parameterized runner (same interface as other GP design folders):
 
 ```matlab
-% Run all 20 experiments and aggregate into SINDy_metrics_all.csv/.mat
+% Run all 20 experiments (aggregation is a separate call)
 run_all_SINDy_experiments();
 
-% Or with options (no plots, subset, skip aggregate)
-run_all_SINDy_experiments(struct('make_plots', false, 'run_subset', 1:10, 'do_aggregate', false));
+% When ready, build the summary table from all existing result files
+run('gp_SINDy_design/aggregate_SINDy_metrics.m');
 ```
 
 **Files:**
-- **run_all_SINDy_experiments.m** — Config-driven driver: runs all experiments and aggregates.
+- **run_all_SINDy_experiments.m** — Config-driven driver: runs experiments. Supports `config_filter` and `run_subset`.
 - **run_SINDy_experiment.m** — Core runner: takes config `{exp_id, noise_pct, is_regular, is_auto}` and runs one experiment.
 - **master_run_scripts.m** — Convenience: calls `run_all_SINDy_experiments()`.
-- **aggregate_SINDy_metrics.m** — Unchanged; compiles all `results_SINDy_exp_*.mat` into `SINDy_metrics_all.csv` / `.mat`.
+- **aggregate_SINDy_metrics.m** — Call separately; compiles all `results_SINDy_exp_*.mat` into `SINDy_metrics_all.csv` / `.mat`.
+
+### Config filter examples (run subsets)
+
+```matlab
+run_all_SINDy_experiments(struct('config_filter', @(c) c.noise_pct == 0));  % zero noise only
+run_all_SINDy_experiments(struct('config_filter', @(c) c.is_regular));      % regular sampling only
+run_all_SINDy_experiments(struct('config_filter', @(c) ~c.is_auto));        % default optimization only
+```
 
 **SINDy-specific:** Two states (M1, M2 microglia). Five built-in kernels only.
 
@@ -52,6 +60,8 @@ From the **project root** or this folder:
 ```matlab
 cd('gp_SINDy_design')
 run_all_SINDy_experiments
+% When done, build the summary table:
+run('aggregate_SINDy_metrics.m')
 ```
 
 Or run one experiment only:

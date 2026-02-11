@@ -66,7 +66,8 @@ for ix = 1:size(exp_files, 1)
     else
         T_merged.Optimization = repmat(categorical("Default"), height(T_merged), 1);
     end
-    T_merged.N_per_Time = ones(height(T_merged), 1);
+    t_max = 50;  % time span from ground_truth_LV [0, 50]
+    T_merged.N_per_Time = T_merged.N / t_max;
     T_merged = T_merged(:, {'Noise', 'N', 'Kernel', 'State', 'Regular', 'Optimization', 'N_per_Time', 'RMSE', 'MAE', 'R2', 'NLPD', 'MSLL', 'CRPS', 'sMSE', 'Coverage', 'NLML'});
     T_all = [T_all; T_merged];
 end

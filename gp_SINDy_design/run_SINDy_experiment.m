@@ -16,7 +16,7 @@ function [T_point, T_prob, T_calib] = run_SINDy_experiment(cfg, opts)
 %        .rng_seed   - for reproducibility (default 42)
 %
 %   Output: T_point, T_prob, T_calib (tables with Kernel, N, State). Saves .mat
-%   and .csv files matching aggregate_SINDy_metrics expectations. Two states:
+%   and one merged .csv with all metrics per experiment. Two states:
 %   M1, M2 (SINDy+MCMC microglia). Five built-in kernels only.
 
     if nargin < 2, opts = struct(); end
@@ -179,12 +179,12 @@ function [T_point, T_prob, T_calib] = run_SINDy_experiment(cfg, opts)
         end
     end
 
-    %% Save (SINDy uses results_SINDy_exp_* naming)
-    [mat_fstem, csv_fstem] = get_output_fstems(cfg);
-    save(fullfile(out_dir, [mat_fstem '.mat']), 'T_point', 'T_prob', 'T_calib', 't_gt', 'M1_gt', 'M2_gt');
-    writetable(T_point, fullfile(out_dir, [csv_fstem '_point_metrics.csv']));
-    writetable(T_prob, fullfile(out_dir, [csv_fstem '_prob_metrics.csv']));
-    writetable(T_calib, fullfile(out_dir, [csv_fstem '_calib_metrics.csv']));
+    %% Save (MAT + single CSV with all metrics per experiment; same stem for both)
+    fstem = get_output_fstem(cfg);
+    save(fullfile(out_dir, [fstem '.mat']), 'T_point', 'T_prob', 'T_calib', 't_gt', 'M1_gt', 'M2_gt');
+    T_merged = join(T_point, T_prob, 'Keys', {'Kernel', 'N', 'State'});
+    T_merged = join(T_merged, T_calib, 'Keys', {'Kernel', 'N', 'State'});
+    writetable(T_merged, fullfile(out_dir, [fstem '.csv']));
 end
 
 function v = get_opt(opts, name, default)
@@ -195,13 +195,13 @@ function v = iif(cond, a, b)
     if cond, v = a; else, v = b; end
 end
 
-function [mat_fstem, csv_fstem] = get_output_fstems(cfg)
+function fstem = get_output_fstem(cfg)
+    % Same stem for .mat and .csv (e.g. results_SINDy_exp_01_regular_0noise)
     sam = iif(cfg.is_regular, 'regular', 'irregular');
     noise = cfg.noise_pct;
     if noise == 0, ns = '0noise'; elseif noise == 0.01, ns = '1noise';
     elseif noise == 0.05, ns = '5noise'; elseif noise == 0.10, ns = '10noise';
     elseif noise == 0.20, ns = '20noise'; else, ns = sprintf('%.0fnoise', noise*100); end
     auto = iif(cfg.is_auto, '_auto', '');
-    mat_fstem = sprintf('results_SINDy_exp_%02d_%s_%s%s', cfg.exp_id, sam, ns, auto);
-    csv_fstem = sprintf('results_SINDy_exp_%02d', cfg.exp_id);
+    fstem = sprintf('results_SINDy_exp_%02d_%s_%s%s', cfg.exp_id, sam, ns, auto);
 end

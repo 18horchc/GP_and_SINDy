@@ -7,18 +7,26 @@ GP experiments on the **Robertson stiff reaction kinetics** system (3 states: X,
 Use the parameterized runner (same interface as gp_logistic_design and gp_LV_design):
 
 ```matlab
-% Run all 20 experiments and aggregate into kinetics_metrics_all.csv/.mat
+% Run all 20 experiments (aggregation is a separate call)
 run_all_kinetics_experiments();
 
-% Or with options (no plots, subset, skip aggregate)
-run_all_kinetics_experiments(struct('make_plots', false, 'run_subset', 1:10, 'do_aggregate', false));
+% When ready, build the summary table from all existing result files
+run('gp_kinetics_design/aggregate_kinetics_metrics.m');
 ```
 
 **Files:**
-- **run_all_kinetics_experiments.m** — Config-driven driver: runs all experiments and aggregates.
+- **run_all_kinetics_experiments.m** — Config-driven driver: runs experiments. Supports `config_filter` and `run_subset`.
 - **run_kinetics_experiment.m** — Core runner: takes config `{exp_id, noise_pct, is_regular, is_auto}` and runs one experiment.
 - **master_run_scripts.m** — Convenience: calls `run_all_kinetics_experiments()`.
-- **aggregate_kinetics_metrics.m** — Unchanged; compiles all `results_kin_exp_*.mat` into `kinetics_metrics_all.csv` / `.mat`.
+- **aggregate_kinetics_metrics.m** — Call separately; compiles all `results_kin_exp_*.mat` into `kinetics_metrics_all.csv` / `.mat`.
+
+### Config filter examples (run subsets)
+
+```matlab
+run_all_kinetics_experiments(struct('config_filter', @(c) c.noise_pct == 0));  % zero noise only
+run_all_kinetics_experiments(struct('config_filter', @(c) c.is_regular));       % regular sampling only
+run_all_kinetics_experiments(struct('config_filter', @(c) ~c.is_auto));       % default optimization only
+```
 
 **Kinetics-specific:** Three states (X, Y, Z). Five built-in kernels only (no periodic).
 
@@ -52,6 +60,8 @@ From the **project root** or this folder:
 ```matlab
 cd('gp_kinetics_design')
 run_all_kinetics_experiments
+% When done, build the summary table:
+run('aggregate_kinetics_metrics.m')
 ```
 
 Or run one experiment only:

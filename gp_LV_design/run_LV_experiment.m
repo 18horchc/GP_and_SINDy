@@ -17,7 +17,7 @@ function [T_point, T_prob, T_calib] = run_LV_experiment(cfg, opts)
 %        .rng_seed   - for reproducibility (default 42)
 %
 %   Output: T_point, T_prob, T_calib (tables with Kernel, N, State). Saves .mat
-%   and .csv files matching aggregate_LV_metrics expectations. Two states: Prey,
+%   and one merged .csv with all metrics per experiment. Two states: Prey,
 %   Predator. Six kernels: 5 built-in + custom periodicKernel.
 
     if nargin < 2, opts = struct(); end
@@ -223,13 +223,13 @@ function v = iif(cond, a, b)
     if cond, v = a; else, v = b; end
 end
 
-function [mat_fstem, csv_fstem] = get_output_fstems(cfg)
+function fstem = get_output_fstem(cfg)
+    % Same stem for .mat and .csv (e.g. results_exp_01_regular_0noise)
     sam = iif(cfg.is_regular, 'regular', 'irregular');
     noise = cfg.noise_pct;
     if noise == 0, ns = '0noise'; elseif noise == 0.01, ns = '1noise';
     elseif noise == 0.05, ns = '5noise'; elseif noise == 0.10, ns = '10noise';
     elseif noise == 0.20, ns = '20noise'; else, ns = sprintf('%.0fnoise', noise*100); end
     auto = iif(cfg.is_auto, '_auto', '');
-    mat_fstem = sprintf('results_exp_%02d_%s_%s%s', cfg.exp_id, sam, ns, auto);
-    csv_fstem = sprintf('results_exp_%02d', cfg.exp_id);
+    fstem = sprintf('results_exp_%02d_%s_%s%s', cfg.exp_id, sam, ns, auto);
 end
