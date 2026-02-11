@@ -1,43 +1,63 @@
 # GP Lotka-Volterra Experiments
 
-GP experiments on the **Lotka-Volterra** predator–prey model, mirroring the structure of `gp_logistic_design` (same metrics, same kernels, same N and noise ideas). LV parameters match **lotka_volterra_model.m** and **all_toy_problems.m**: default `alpha=1`, `beta=0.2`, `delta=0.5`, `gamma=0.2`, `x0=1`, `y0=2`, `tspan=[0 50]`.
+GP experiments on the **Lotka-Volterra** predator–prey model, mirroring the structure of `gp_logistic_design`. LV parameters match **lotka_volterra_model.m** and **all_toy_problems.m**: default `alpha=1`, `beta=0.2`, `delta=0.5`, `gamma=0.2`, `x0=1`, `y0=2`, `tspan=[0 50]`.
+
+## Streamlined workflow (recommended)
+
+Use the parameterized runner (same interface as gp_logistic_design):
+
+```matlab
+% Run all 20 experiments and aggregate into LV_metrics_all.csv/.mat
+run_all_LV_experiments();
+
+% Or with options (no plots, subset, skip aggregate)
+run_all_LV_experiments(struct('make_plots', false, 'run_subset', 1:10, 'do_aggregate', false));
+```
+
+**Files:**
+- **run_all_LV_experiments.m** — Config-driven driver: runs all experiments and aggregates.
+- **run_LV_experiment.m** — Core runner: takes config `{exp_id, noise_pct, is_regular, is_auto}` and runs one experiment.
+- **master_run_scripts.m** — Convenience: calls `run_all_LV_experiments()`.
+- **aggregate_LV_metrics.m** — Unchanged; compiles all `results_exp_*.mat` into `LV_metrics_all.csv` / `.mat`.
+
+**LV-specific:** Two states (Prey, Predator); six kernels (5 built-in + custom `periodicKernel`). Periodic kernel uses `KernelParameters` (no auto optimization). Tables include a **State** column.
+
+---
+
+## Legacy: Individual experiment scripts
+
+The original `LV_exp_NN_<scope>.m` files (01–20) are in the `old/` folder for reference.
 
 ## Shared code (in this folder)
 
-- **lotka_volterra_model.m** — LV ODE model (same as used by all_toy_problems). Moved here from project root.
-- **ground_truth_LV.m** — High-res LV curves (default 500 pts on [0, 50]) for prey and predator. Calls `lotka_volterra_model(params, false)` and interpolates.
-- **periodicKernel.m** — Custom periodic kernel for fitrgp; used by LV_exp_01 (initial period = t_range/3, length scale = period/4, sigmaF = std(Y)).
-- **metric_helpers.m** — Lives in the **project root** (`GP_and_SINDy/metric_helpers.m`). Runners use `addpath('..')` to access it.
+- **lotka_volterra_model.m** — LV ODE model (same as used by all_toy_problems).
+- **ground_truth_LV.m** — High-res LV curves (500 pts on [0, 50]) for prey and predator.
+- **periodicKernel.m** — Custom periodic kernel for fitrgp (period = t_range/3, length scale = period/4, sigmaF = std(Y)).
+- **metric_helpers.m** — Lives in the **project root**. Runners use `addpath('..')` to access it.
 
-## Naming convention
+## Experiments (all 20)
 
-- **Runner scripts:** `LV_exp_NN_<scope>.m` (e.g. `LV_exp_01_regular_0noise.m`). Logistic design uses `log_exp_NN_...` in its folder.
+| Exp | Sampling | Noise | Optimization |
+|-----|----------|-------|--------------|
+| 01–05 | Regular | 0%, 1%, 5%, 10%, 20% | Default |
+| 06–10 | Irregular | 0%, 1%, 5%, 10%, 20% | Default |
+| 11–15 | Regular | 0%, 1%, 5%, 10%, 20% | Auto |
+| 16–20 | Irregular | 0%, 1%, 5%, 10%, 20% | Auto |
 
-## Experiments
-
-| Script | Scope |
-|--------|--------|
-| **LV_exp_01_regular_0noise.m** | Ground truth LV; regular sampling; 0% noise; N = 5, 10, 25, 50; all 6 kernels; one GP per state (Prey, Predator). |
-| **LV_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise on sampled prey and predator (sigma = 0.01*std per state); rng(42) for reproducibility. |
-| **LV_exp_03_regular_5noise.m** | Same as 02 with 5% Gaussian noise (sigma = 0.05*std per state). |
-| **LV_exp_04_regular_10noise.m** | Same as 03 with 10% Gaussian noise (sigma = 0.10*std per state). |
-| **LV_exp_05_regular_20noise.m** | Same as 04 with 20% Gaussian noise (sigma = 0.20*std per state). |
-
-Tables include a **State** column (Prey / Predator). Figures: one RMSE vs N (Prey and Predator side by side); one figure per kernel with 2×4 subplots (row 1: Prey for N=5,10,25,50; row 2: Predator).
+Each varies N = 5, 10, 25, 50 and kernels: SqExp, Matern 1/2, 3/2, 5/2, Rational Quadratic, **Periodic**. One GP per state (Prey, Predator).
 
 ## How to run
 
-From the **project root** `GP_and_SINDy`:
-
-```matlab
-run('gp_LV_design/LV_exp_01_regular_0noise.m')
-```
-
-Or:
+From the **project root** or this folder:
 
 ```matlab
 cd('gp_LV_design')
-LV_exp_01_regular_0noise
+run_all_LV_experiments
 ```
 
-Ensure the project root is on the path (or use the script’s `addpath('..')`) so `metric_helpers` and `lotka_volterra_model` are found.
+Or run one experiment only:
+
+```matlab
+cfg = struct('exp_id', 1, 'noise_pct', 0, 'is_regular', true, 'is_auto', false);
+[T_point, T_prob, T_calib] = run_LV_experiment(cfg);
+```
