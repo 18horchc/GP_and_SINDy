@@ -7,7 +7,7 @@ Experiments for the **GP-on-logistic-growth** design (see [GP_Logistic_Experimen
 Instead of running 20 individual experiment files, use the parameterized runner:
 
 ```matlab
-% Run all 20 experiments (aggregation is a separate call)
+% Run all 60 experiments (aggregation is a separate call)
 run_all_logistic_experiments();
 
 % When ready, build the summary table from all existing result files
@@ -23,6 +23,14 @@ run('gp_logistic_design/aggregate_logistic_metrics.m');
 **Benefits:** One place to fix bugs, add kernels, or change N_list. Add a new condition by extending `build_logistic_configs()`.
 
 ### Config filter examples (run subsets)
+
+```matlab
+% Run only base experiments (1 obs per time)
+run_all_logistic_experiments(struct('config_filter', @(c) c.n_replicates == 1));
+
+% Run only 3-replicate experiments
+run_all_logistic_experiments(struct('config_filter', @(c) c.n_replicates == 3));
+```
 
 Use `config_filter` to run only experiments matching criteria. Aggregation is **separate** — it never overwrites until you explicitly call it.
 
@@ -64,16 +72,15 @@ The original `log_exp_NN_<scope>.m` files (01–20) still work and produce ident
 - **Results:** `results_exp_NN_<scope>.mat` and `results_exp_NN_<scope>.csv` (same stem; e.g. `results_exp_01_regular_0noise`).
 - **Shared helpers:** `ground_truth_logistic.m`, `logistic_growth.m`, `metric_helpers.m` (project root).
 
-## Experiments (all 20)
+## Experiments (60 total)
 
-| Exp | Sampling | Noise | Optimization |
-|-----|----------|-------|--------------|
-| 01–05 | Regular | 0%, 1%, 5%, 10%, 20% | Default |
-| 06–10 | Irregular | 0%, 1%, 5%, 10%, 20% | Default |
-| 11–15 | Regular | 0%, 1%, 5%, 10%, 20% | Auto |
-| 16–20 | Irregular | 0%, 1%, 5%, 10%, 20% | Auto |
+| Exp | Sampling | Noise | Optimization | Replicates |
+|-----|----------|-------|--------------|------------|
+| 01–20 | Regular/irregular | 0–20% | Default/auto | 1 per time |
+| 21–40 | Same | Same | Same | 3 per time |
+| 41–60 | Same | Same | Same | 8 per time |
 
-Each varies N = 5, 10, 25, 50 and kernels: SqExp, Matern 1/2, 3/2, 5/2, Rational Quadratic.
+N = 5, 10, 25, 50 time points. Kernels: SqExp, Matern 1/2, 3/2, 5/2, Rational Quadratic. Replicate noise is proportional to the ground truth at each time (realistic for growth data).
 
 ## How to run
 
@@ -89,7 +96,7 @@ run('aggregate_logistic_metrics.m')
 Or run one experiment only:
 
 ```matlab
-cfg = struct('exp_id', 1, 'noise_pct', 0, 'is_regular', true, 'is_auto', false);
+cfg = struct('exp_id', 1, 'noise_pct', 0, 'is_regular', true, 'is_auto', false, 'n_replicates', 1);
 [T_point, T_prob, T_calib] = run_logistic_experiment(cfg);
 ```
 
