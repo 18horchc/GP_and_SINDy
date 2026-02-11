@@ -168,7 +168,7 @@ function [t_obs, y_obs] = generate_replicates(t_gt, y_gt, t_points, n_rep, noise
     y_true_at_t = interp1(t_gt, y_gt, t_points, 'linear', 'extrap');
     t_obs = repelem(t_points, n_rep);
     y_obs = repelem(y_true_at_t, n_rep);
-    if noise_pct > 0 && n_rep > 1
+    if noise_pct > 0
         % Proportional replicate noise: sigma_i = noise_pct * y_true(t_i).
         % Realistic for growth data (variance scales with mean). Floor for stability.
         sigma_floor = 1e-10 * std(y_gt);
