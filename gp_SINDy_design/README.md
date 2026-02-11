@@ -1,42 +1,62 @@
 # GP SINDy+MCMC Microglia Experiments
 
-GP experiments on the **SINDy+MCMC microglial cell dynamics** model (Amato & Arnold, 2025). Two states: M1, M2. Same structure as `gp_logistic_design` and `gp_LV_design`: same kernels, N list, and metric tables. Parameters match **sindy_mcmc_microglia.m** and **all_toy_problems.m** (default MCMC posterior means, M0=[5;5], tspan=[0 50]).
+GP experiments on the **SINDy+MCMC microglial cell dynamics** model (Amato & Arnold, 2025). Two states: M1, M2. Same structure as `gp_logistic_design`, `gp_LV_design`, and `gp_kinetics_design`. Parameters match **sindy_mcmc_microglia.m** and **all_toy_problems.m** (default MCMC posterior means, M0=[5;5], tspan=[0 50]).
+
+## Streamlined workflow (recommended)
+
+Use the parameterized runner (same interface as other GP design folders):
+
+```matlab
+% Run all 20 experiments and aggregate into SINDy_metrics_all.csv/.mat
+run_all_SINDy_experiments();
+
+% Or with options (no plots, subset, skip aggregate)
+run_all_SINDy_experiments(struct('make_plots', false, 'run_subset', 1:10, 'do_aggregate', false));
+```
+
+**Files:**
+- **run_all_SINDy_experiments.m** — Config-driven driver: runs all experiments and aggregates.
+- **run_SINDy_experiment.m** — Core runner: takes config `{exp_id, noise_pct, is_regular, is_auto}` and runs one experiment.
+- **master_run_scripts.m** — Convenience: calls `run_all_SINDy_experiments()`.
+- **aggregate_SINDy_metrics.m** — Unchanged; compiles all `results_SINDy_exp_*.mat` into `SINDy_metrics_all.csv` / `.mat`.
+
+**SINDy-specific:** Two states (M1, M2 microglia). Five built-in kernels only.
+
+---
+
+## Legacy: Individual experiment scripts
+
+The original `SINDy_exp_NN_<scope>.m` files (01–20) are in the `old/` folder for reference.
 
 ## Shared code (in this folder)
 
-- **sindy_mcmc_microglia.m** — SINDy+MCMC ODE model (same as used by all_toy_problems). Moved here from project root.
-- **ground_truth_SINDy.m** — High-res M1, M2 curves (default 500 pts on [0, 50]). Calls `sindy_mcmc_microglia(params, false)` and interpolates.
-- **metric_helpers.m** — Lives in the **project root** (`GP_and_SINDy/metric_helpers.m`). Runners use `addpath('..')` to access it.
+- **sindy_mcmc_microglia.m** — SINDy+MCMC ODE model (same as used by all_toy_problems).
+- **ground_truth_SINDy.m** — High-res M1, M2 curves (500 pts on [0, 50]).
+- **metric_helpers.m** — Lives in the **project root**. Runners use `addpath('..')` to access it.
 
-## Naming convention
+## Experiments (all 20)
 
-- **Runner scripts:** `SINDy_exp_NN_<scope>.m` (e.g. `SINDy_exp_01_regular_0noise.m`).
+| Exp | Sampling | Noise | Optimization |
+|-----|----------|-------|--------------|
+| 01–05 | Regular | 0%, 1%, 5%, 10%, 20% | Default |
+| 06–10 | Irregular | 0%, 1%, 5%, 10%, 20% | Default |
+| 11–15 | Regular | 0%, 1%, 5%, 10%, 20% | Auto |
+| 16–20 | Irregular | 0%, 1%, 5%, 10%, 20% | Auto |
 
-## Experiments
-
-| Script | Scope |
-|--------|--------|
-| **SINDy_exp_01_regular_0noise.m** | Ground truth SINDy; regular sampling; 0% noise; N = 5, 10, 25, 50; 5 kernels; one GP per state (M1, M2). |
-| **SINDy_exp_02_regular_1noise.m** | Same as 01 with 1% Gaussian noise (sigma = 0.01×std per state); rng(42) for reproducibility. |
-| **SINDy_exp_03_regular_5noise.m** | Same as 02 with 5% Gaussian noise (sigma = 0.05×std per state). |
-| **SINDy_exp_04_regular_10noise.m** | Same as 03 with 10% Gaussian noise (sigma = 0.10×std per state). |
-| **SINDy_exp_05_regular_20noise.m** | Same as 04 with 20% Gaussian noise (sigma = 0.20×std per state). |
-
-Tables include a **State** column (M1 / M2). Figures: RMSE vs N (2 subplots for M1, M2); one figure per kernel with 2×4 subplots (row 1: M1 for N=5,10,25,50; row 2: M2).
+Each varies N = 5, 10, 25, 50 and kernels: SqExp, Matern 1/2, 3/2, 5/2, Rational Quadratic. One GP per state (M1, M2).
 
 ## How to run
 
-From the **project root** `GP_and_SINDy`:
-
-```matlab
-run('gp_SINDy_design/SINDy_exp_01_regular_0noise.m')
-```
-
-Or:
+From the **project root** or this folder:
 
 ```matlab
 cd('gp_SINDy_design')
-SINDy_exp_01_regular_0noise
+run_all_SINDy_experiments
 ```
 
-Ensure the project root is on the path so `metric_helpers` is found.
+Or run one experiment only:
+
+```matlab
+cfg = struct('exp_id', 1, 'noise_pct', 0, 'is_regular', true, 'is_auto', false);
+[T_point, T_prob, T_calib] = run_SINDy_experiment(cfg);
+```
