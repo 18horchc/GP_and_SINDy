@@ -108,18 +108,21 @@ function [T_point, T_prob, T_calib] = run_logistic_experiment(cfg, opts)
     if make_plots
         sam_str = iif(cfg.is_regular, 'Regular', 'Irregular');
         noise_str = sprintf('%.0f%%', cfg.noise_pct * 100);
-        auto_str = iif(cfg.is_auto, 'Auto', 'Default');
-        tit_base = sprintf('GP Logistic Exp %02d: %s sampling, %s noise%s', ...
-            cfg.exp_id, sam_str, noise_str, iif(cfg.is_auto, ', Auto', ''));
+        rep_str = iif(n_rep > 1, sprintf(' — Replicates, %d', n_rep), '');
+        tit_base = sprintf('GP Logistic Exp %02d: %s sampling, %s noise%s%s', ...
+            cfg.exp_id, sam_str, noise_str, iif(cfg.is_auto, ', Auto', ''), rep_str);
+
+        % Total observations per N (time points)
+        N_total_list = N_list * n_rep;
 
         figure;
         hold on;
         for ik = 1:length(kernel_labels)
             idx = strcmp(T_point.Kernel, kernel_labels{ik});
-            plot(T_point.N(idx), T_point.RMSE(idx), '-o', 'LineWidth', 1.5, 'DisplayName', kernel_labels{ik});
+            plot(N_total_list, T_point.RMSE(idx), '-o', 'LineWidth', 1.5, 'DisplayName', kernel_labels{ik});
         end
         xlabel('Number of points (N)'); ylabel('RMSE'); title(tit_base);
-        legend('Location', 'best'); grid on; set(gca, 'XTick', N_list);
+        legend('Location', 'best'); grid on; set(gca, 'XTick', N_total_list);
 
         for ik = 1:length(kernel_labels)
             figure('Name', sprintf('Exp %02d: %s', cfg.exp_id, kernel_labels{ik}));
@@ -134,10 +137,10 @@ function [T_point, T_prob, T_calib] = run_logistic_experiment(cfg, opts)
                     ylo = ymu - 1.96*ystd; yhi = ymu + 1.96*ystd;
                     fill([t_gt; flip(t_gt)], [ylo; flip(yhi)], 'b', 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
                 end
-                hold off; xlabel('Time'); ylabel('Population'); title(sprintf('N = %d', N_list(in)));
+                hold off; xlabel('Time'); ylabel('Population'); title(sprintf('N = %d', N_total_list(in)));
                 legend('Location', 'best', 'FontSize', 8); grid on; xlim([0 50]);
             end
-            sgtitle(sprintf('Exp %02d: %s — %s, %s%s', cfg.exp_id, kernel_labels{ik}, sam_str, noise_str, iif(cfg.is_auto, ', Auto', '')));
+            sgtitle(sprintf('Exp %02d: %s — %s, %s%s%s', cfg.exp_id, kernel_labels{ik}, sam_str, noise_str, iif(cfg.is_auto, ', Auto', ''), rep_str));
         end
     end
 
