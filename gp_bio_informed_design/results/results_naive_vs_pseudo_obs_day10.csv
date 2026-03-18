@@ -1,0 +1,3 @@
+Model,RMSE,MAE,R2,NLPD,MSLL,CRPS,sMSE,Coverage,NLML
+naive,NaN,NaN,NaN,NaN,NaN,NaN,NaN,0,NaN
+pseudo_obs,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
